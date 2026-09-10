@@ -1,0 +1,820 @@
+diff --git a/lib/I18n/translations/english.yaml b/lib/I18n/translations/english.yaml
+index 6d91063..3e54ce3 100644
+--- a/lib/I18n/translations/english.yaml
++++ b/lib/I18n/translations/english.yaml
+@@ -464,3 +464,8 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
+ STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF: "Do not power off!"
+ STR_RECOVERY_MODE: "Recovery Mode"
+ STR_RECOVERY_MODE_HINT: "Place firmware.bin on SD card root and select it"
++
++STR_CALENDAR: "Calendar"
++STR_TODAY: "Today"
++STR_LUNAR_DATE: "Lunar"
++STR_CLOCK_NOT_SET: "Connect to Wi-Fi to set the date"
+diff --git a/lib/I18n/translations/vietnamese.yaml b/lib/I18n/translations/vietnamese.yaml
+index 2a306e3..d4eea8a 100644
+--- a/lib/I18n/translations/vietnamese.yaml
++++ b/lib/I18n/translations/vietnamese.yaml
+@@ -448,3 +448,8 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
+ STR_RECOVERY_MODE_HINT: "Đặt firmware.bin ở thư mục gốc thẻ SD rồi chọn"
+ STR_ADD_HIDDEN_NETWORK: "Thêm mạng ẩn..."
+ STR_ENTER_WIFI_SSID: "Nhập tên mạng (SSID)"
++
++STR_CALENDAR: "Lịch"
++STR_TODAY: "Hôm nay"
++STR_LUNAR_DATE: "Âm lịch"
++STR_CLOCK_NOT_SET: "Nối Wi-Fi để lấy ngày tháng"
+diff --git a/lib/hal/HalClock.cpp b/lib/hal/HalClock.cpp
+index c793c9e..e34492f 100644
+--- a/lib/hal/HalClock.cpp
++++ b/lib/hal/HalClock.cpp
+@@ -12,8 +12,90 @@ void HalClock::begin() {
+   LOG_INF("CLK", _available ? "SDK RTC found" : "RTC not found");
+ }
+ 
++// Civil date <-> Unix epoch, self-contained so the HAL keeps no dependency on
++// newlib's optional timegm(). Days are counted from 1970-01-01 via the standard
++// days-from-civil formula (Howard Hinnant, "chrono-Compatible Low-Level Date
++// Algorithms"), valid for any Gregorian date the RTC or NTP can produce.
++namespace {
++
++int64_t daysFromCivil(int y, unsigned m, unsigned d) {
++  y -= m <= 2;
++  const int64_t era = (y >= 0 ? y : y - 399) / 400;
++  const unsigned yoe = static_cast<unsigned>(y - era * 400);            // [0, 399]
++  const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;  // [0, 365]
++  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;           // [0, 146096]
++  return era * 146097 + static_cast<int64_t>(doe) - 719468;
++}
++
++void civilFromDays(int64_t z, int& y, unsigned& m, unsigned& d) {
++  z += 719468;
++  const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
++  const unsigned doe = static_cast<unsigned>(z - era * 146097);                // [0, 146096]
++  const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;  // [0, 399]
++  const int64_t yr = static_cast<int64_t>(yoe) + era * 400;
++  const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);  // [0, 365]
++  const unsigned mp = (5 * doy + 2) / 153;                       // [0, 11]
++  d = doy - (153 * mp + 2) / 5 + 1;                              // [1, 31]
++  m = mp + (mp < 10 ? 3 : -9);                                   // [1, 12]
++  y = static_cast<int>(yr + (m <= 2));
++}
++
++// Floor division/modulo, so negative epochs (pre-1970) still land on the right day.
++int64_t floorDiv(int64_t a, int64_t b) { return (a >= 0 ? a : a - (b - 1)) / b; }
++
++}  // namespace
++
++bool HalClock::getUtcEpoch(int64_t& out) const {
++  if (_available) {
++    Rtc::DateTime dt;
++    if (!_sdkRtc.now(dt)) return false;
++    out = daysFromCivil(dt.year, dt.month, dt.day) * 86400 + dt.hour * 3600 + dt.minute * 60 + dt.second;
++    return true;
++  }
++  if (_softValid) {
++    out = static_cast<int64_t>(time(nullptr));
++    return true;
++  }
++  return false;
++}
++
++bool HalClock::getLocalDateTime(Rtc::DateTime& out, uint8_t utcOffsetQuarterHoursBiased) const {
++  int64_t epoch;
++  if (!getUtcEpoch(epoch)) return false;
++
++  // Same clamp as formatTime: a corrupted persisted value must not shift the date.
++  if (utcOffsetQuarterHoursBiased > 104) utcOffsetQuarterHoursBiased = 104;
++  epoch += (static_cast<int>(utcOffsetQuarterHoursBiased) - 48) * 15 * 60;
++
++  const int64_t days = floorDiv(epoch, 86400);
++  const int64_t secOfDay = epoch - days * 86400;
++
++  int year;
++  unsigned month, day;
++  civilFromDays(days, year, month, day);
++
++  out.year = static_cast<uint16_t>(year);
++  out.month = static_cast<uint8_t>(month);
++  out.day = static_cast<uint8_t>(day);
++  out.hour = static_cast<uint8_t>(secOfDay / 3600);
++  out.minute = static_cast<uint8_t>((secOfDay / 60) % 60);
++  out.second = static_cast<uint8_t>(secOfDay % 60);
++  // 1970-01-01 was a Thursday (weekday 4); floorDiv keeps this correct before 1970.
++  out.weekday = static_cast<uint8_t>(((days % 7) + 11) % 7);
++  return true;
++}
++
+ bool HalClock::getTime(uint8_t& hour, uint8_t& minute) const {
+-  if (!_available) return false;
++  if (!_available) {
++    // Software clock: the system time is already cheap to read, so this path
++    // skips the RTC poll cache entirely.
++    if (!_softValid) return false;
++    Rtc::DateTime dt;
++    if (!getLocalDateTime(dt, 48)) return false;  // UTC; callers apply their own offset
++    hour = dt.hour;
++    minute = dt.minute;
++    return true;
++  }
+ 
+   const unsigned long now = millis();
+   if (_lastPollMs != 0 && (now - _lastPollMs) < CLOCK_POLL_MS) {
+@@ -67,8 +149,8 @@ bool HalClock::formatTime(char* buf, size_t bufSize, uint8_t utcOffsetQuarterHou
+ }
+ 
+ bool HalClock::syncFromNTP() {
+-  if (!_available) return false;
+-
++  // No _available guard: boards without an RTC chip sync the software clock
++  // here instead, which is the only way they ever learn the date.
+   if (WiFi.status() != WL_CONNECTED) {
+     LOG_ERR("CLK", "WiFi not connected, cannot sync NTP");
+     return false;
+@@ -85,6 +167,16 @@ bool HalClock::syncFromNTP() {
+       struct tm timeinfo;
+       gmtime_r(&now, &timeinfo);
+ 
++      if (!_available) {
++        // Software-clock board: SNTP has already set the system time, which is
++        // what getUtcEpoch() reads. Nothing to write, just start trusting it.
++        _softValid = true;
++        LOG_INF("CLK", "Software clock set to %04d-%02d-%02d %02d:%02d:%02d UTC (no RTC on this board)",
++                timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min,
++                timeinfo.tm_sec);
++        return true;
++      }
++
+       Rtc::DateTime dt;
+       dt.year = static_cast<uint16_t>(timeinfo.tm_year + 1900);
+       dt.month = static_cast<uint8_t>(timeinfo.tm_mon + 1);
+diff --git a/lib/hal/HalClock.h b/lib/hal/HalClock.h
+index 7fd2f6b..21e2066 100644
+--- a/lib/hal/HalClock.h
++++ b/lib/hal/HalClock.h
+@@ -3,11 +3,19 @@
+ #include <Arduino.h>
+ #include <Rtc.h>
+ 
++#include <cstdint>
++
+ class HalClock;
+ extern HalClock halClock;  // Singleton
+ 
+ class HalClock {
+   bool _available = false;
++  // Software clock, for boards with no RTC chip (the Xteink X4 profile is
++  // NO_SENSORS — see BoardConfig.h FREEINK_CAP_RTC, which lists X3/X4 Pro/X4
++  // Classic but not the plain X4). Set by a successful NTP sync; the ESP32's
++  // system time then keeps running off the RTC-domain timer, so it survives
++  // deep sleep and is lost only on a full power cycle.
++  bool _softValid = false;
+   mutable Rtc _sdkRtc;
+   mutable uint8_t _cachedHour = 0;
+   mutable uint8_t _cachedMinute = 0;
+@@ -16,12 +24,28 @@ class HalClock {
+ 
+   static constexpr unsigned long CLOCK_POLL_MS = 10000;  // 10 seconds
+ 
++  // Current UTC time as a Unix epoch, from the RTC when present and from the
++  // system clock when running on the software fallback.
++  bool getUtcEpoch(int64_t& out) const;
++
+  public:
+   // Call after BoardConfig has selected the active device.
+   void begin();
+ 
+-  // True if an RTC is present on this device
+-  bool isAvailable() const { return _available; }
++  // True when a wall-clock time can be read: a hardware RTC, or a software
++  // clock that NTP has set this power cycle.
++  bool isAvailable() const { return _available || _softValid; }
++
++  // True only for boards that carry an RTC chip. Callers that need to explain
++  // why the time can be lost (no battery-backed clock) use this; everything
++  // that only needs "can I show a time?" uses isAvailable().
++  bool hasHardwareRtc() const { return _available; }
++
++  // Local date and time with `utcOffsetQuarterHoursBiased` applied (same biased
++  // encoding as formatTime: 48 = UTC+0). Unlike formatTime, which wraps within
++  // the day, this carries the offset across midnight so the date is correct.
++  // Returns false when no clock is available.
++  bool getLocalDateTime(Rtc::DateTime& out, uint8_t utcOffsetQuarterHoursBiased = 48) const;
+ 
+   // Get current hour (0-23) and minute (0-59).
+   // Returns false if RTC is not available.
+diff --git a/src/activities/ActivityManager.cpp b/src/activities/ActivityManager.cpp
+index fa34ad7..1bd028c 100644
+--- a/src/activities/ActivityManager.cpp
++++ b/src/activities/ActivityManager.cpp
+@@ -24,6 +24,7 @@
+ #include "settings/OpdsServerListActivity.h"
+ #include "settings/SettingsActivity.h"
+ #include "util/BmpViewerActivity.h"
++#include "util/CalendarActivity.h"
+ #include "util/FrontlightPanelActivity.h"
+ #include "util/FullScreenMessageActivity.h"
+ 
+@@ -252,6 +253,8 @@ void ActivityManager::goToRecentBooks() {
+   replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
+ }
+ 
++void ActivityManager::goToCalendar() { replaceActivity(std::make_unique<CalendarActivity>(renderer, mappedInput)); }
++
+ void ActivityManager::goToBrowser() {
+   const auto& servers = OPDS_STORE.getServers();
+   // Skip the server picker when there's only one server configured
+diff --git a/src/activities/ActivityManager.h b/src/activities/ActivityManager.h
+index acda644..ba852f7 100644
+--- a/src/activities/ActivityManager.h
++++ b/src/activities/ActivityManager.h
+@@ -17,7 +17,7 @@
+ class Activity;    // forward declaration
+ class RenderLock;  // forward declaration
+ 
+-enum class HomeMenuItem { NONE, FILE_BROWSER, RECENTS, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU };
++enum class HomeMenuItem { NONE, FILE_BROWSER, RECENTS, OPDS_BROWSER, FILE_TRANSFER, CALENDAR, SETTINGS_MENU };
+ 
+ /**
+  * ActivityManager
+@@ -86,6 +86,7 @@ class ActivityManager {
+   void goToSettings();
+   void goToFileBrowser(std::string path = {});
+   void goToRecentBooks();
++  void goToCalendar();
+   void goToBrowser();
+   void goToReader(std::string path, bool allowFastInitialRefresh = false);
+   void goToSleep(bool fromTimeout = false);
+diff --git a/src/activities/home/HomeActivity.cpp b/src/activities/home/HomeActivity.cpp
+index c29d9b2..edc0a2a 100644
+--- a/src/activities/home/HomeActivity.cpp
++++ b/src/activities/home/HomeActivity.cpp
+@@ -23,7 +23,7 @@
+ #include "fontIds.h"
+ 
+ int HomeActivity::getMenuItemCount() const {
+-  int count = 4;  // File Browser, Recents, File transfer, Settings
++  int count = 5;  // File Browser, Recents, File transfer, Calendar, Settings
+   if (!recentBooks.empty()) {
+     count += recentBooks.size();
+   }
+@@ -191,6 +191,9 @@ void HomeActivity::loop() {
+       case HomeMenuItem::FILE_TRANSFER:
+         onFileTransferOpen();
+         break;
++      case HomeMenuItem::CALENDAR:
++        onCalendarOpen();
++        break;
+       case HomeMenuItem::SETTINGS_MENU:
+         onSettingsOpen();
+         break;
+@@ -306,8 +309,8 @@ void HomeActivity::render(RenderLock&&) {
+ 
+   // Build menu items dynamically
+   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
+-                                        tr(STR_SETTINGS_TITLE)};
+-  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings};
++                                        tr(STR_CALENDAR), tr(STR_SETTINGS_TITLE)};
++  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Bookmark, Settings};
+ 
+   if (hasOpdsServers) {
+     menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
+@@ -356,3 +359,5 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
+ void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
+ 
+ void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
++
++void HomeActivity::onCalendarOpen() { activityManager.goToCalendar(); }
+diff --git a/src/activities/home/HomeActivity.h b/src/activities/home/HomeActivity.h
+index 4ea540e..c3150cd 100644
+--- a/src/activities/home/HomeActivity.h
++++ b/src/activities/home/HomeActivity.h
+@@ -42,6 +42,8 @@ class HomeActivity final : public Activity {
+     if (hasOpdsUrl) ++i;
+     if (item == HomeMenuItem::FILE_TRANSFER) return i;
+     ++i;
++    if (item == HomeMenuItem::CALENDAR) return i;
++    ++i;
+     if (item == HomeMenuItem::SETTINGS_MENU) return i;
+     return 0;
+   }
+@@ -53,6 +55,7 @@ class HomeActivity final : public Activity {
+     if (idx == i++) return HomeMenuItem::RECENTS;
+     if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
+     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
++    if (idx == i++) return HomeMenuItem::CALENDAR;
+     if (idx == i) return HomeMenuItem::SETTINGS_MENU;
+     return HomeMenuItem::NONE;
+   }
+@@ -61,6 +64,7 @@ class HomeActivity final : public Activity {
+   void onRecentsOpen();
+   void onSettingsOpen();
+   void onFileTransferOpen();
++  void onCalendarOpen();
+   void onOpdsBrowserOpen();
+ 
+   int getMenuItemCount() const;
+diff --git a/src/activities/network/WifiSelectionActivity.cpp b/src/activities/network/WifiSelectionActivity.cpp
+index f9968b2..3690b27 100644
+--- a/src/activities/network/WifiSelectionActivity.cpp
++++ b/src/activities/network/WifiSelectionActivity.cpp
+@@ -517,11 +517,20 @@ void WifiSelectionActivity::checkConnectionStatus() {
+             WiFi.RSSI());
+ #endif
+ 
+-    // Sync RTC from NTP on the first successful WiFi connection only. The DS3231
+-    // drifts ~2 ppm so one sync is enough; users can force a re-sync from
+-    // Settings > Customise Status Bar > Sync clock now.
+-    if (halClock.isAvailable() && !SETTINGS.clockHasBeenSynced) {
+-      if (halClock.syncFromNTP()) {
++    // Sync the clock from NTP on WiFi connect. Two cases, because the boards
++    // differ in whether the time survives a power cycle:
++    //
++    //  - Hardware RTC (X3, X4 Pro, X4 Classic, Sticky, ...): battery-backed and
++    //    ~2 ppm drift, so one sync ever is enough. Gated on the persisted
++    //    clockHasBeenSynced flag; users force a re-sync from
++    //    Settings > Customise Status Bar > Sync clock now.
++    //  - Software clock (plain X4: BoardConfig gives it NO_SENSORS): the time is
++    //    held in the ESP32's system clock and is gone after a full power-off, so
++    //    the persisted flag must not suppress the sync. Re-sync on every connect
++    //    until it is valid again for this power cycle.
++    const bool needsSync = halClock.hasHardwareRtc() ? !SETTINGS.clockHasBeenSynced : !halClock.isAvailable();
++    if (needsSync && halClock.syncFromNTP()) {
++      if (halClock.hasHardwareRtc() && !SETTINGS.clockHasBeenSynced) {
+         SETTINGS.clockHasBeenSynced = 1;
+         SETTINGS.saveToFile();
+       }
+diff --git a/src/activities/util/CalendarActivity.cpp b/src/activities/util/CalendarActivity.cpp
+new file mode 100644
+index 0000000..751ea4b
+--- /dev/null
++++ b/src/activities/util/CalendarActivity.cpp
+@@ -0,0 +1,183 @@
++#include "CalendarActivity.h"
++
++#include <GfxRenderer.h>
++#include <HalClock.h>
++#include <I18n.h>
++
++#include <cstdio>
++
++#include "CrossPointSettings.h"
++#include "components/UITheme.h"
++#include "fontIds.h"
++#include "util/LunarCalendar.h"
++
++namespace {
++
++// Grid geometry. 7 columns x 6 rows always fits a Gregorian month: the longest
++// case is a 31-day month starting on the last weekday of a row (37 cells).
++constexpr int GRID_COLS = 7;
++constexpr int GRID_ROWS = 6;
++
++// Monday-first, matching Vietnamese convention (calendars here start the week on
++// Monday, unlike the Sunday-first weekday index the RTC and jdFromDate return).
++const char* const WEEKDAY_LABELS[GRID_COLS] = {"T2", "T3", "T4", "T5", "T6", "T7", "CN"};
++
++const char* const MONTH_LABELS[12] = {"Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4",  "Tháng 5",  "Tháng 6",
++                                      "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"};
++
++// 0=Sunday..6=Saturday  ->  0=Monday..6=Sunday
++int toMondayFirst(int sundayFirst) { return (sundayFirst + 6) % 7; }
++
++}  // namespace
++
++CalendarActivity::CalendarActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
++    : Activity("Calendar", renderer, mappedInput) {}
++
++void CalendarActivity::loadToday() {
++  Rtc::DateTime dt;
++  if (halClock.getLocalDateTime(dt, SETTINGS.clockUtcOffsetQ)) {
++    todayYear = dt.year;
++    todayMonth = dt.month;
++    todayDay = dt.day;
++  } else {
++    todayYear = todayMonth = todayDay = 0;
++  }
++}
++
++void CalendarActivity::jumpToToday() {
++  if (todayYear == 0) return;
++  selYear = todayYear;
++  selMonth = todayMonth;
++  selDay = todayDay;
++}
++
++void CalendarActivity::shiftDays(const int delta) {
++  // Go through the Julian day number so month and year rollover is free.
++  const int32_t jd = lunar::jdFromDate(selDay, selMonth, selYear) + delta;
++  lunar::jdToDate(jd, selDay, selMonth, selYear);
++}
++
++void CalendarActivity::onEnter() {
++  Activity::onEnter();
++  loadToday();
++  jumpToToday();  // no-op when the clock is unavailable; the default month stands
++  requestUpdate();
++}
++
++void CalendarActivity::loop() {
++  bool dirty = false;
++
++  // Left/Right (the logical NavPrevious/NavNext pair, so the orientation swap in
++  // MappedInputManager applies) step one day; the side Up/Down buttons step a
++  // week, which is the vertical move in the grid.
++  ButtonNavigator::onPreviousPress([&] {
++    shiftDays(-1);
++    dirty = true;
++  });
++  ButtonNavigator::onNextPress([&] {
++    shiftDays(1);
++    dirty = true;
++  });
++  ButtonNavigator::onPress({MappedInputManager::Button::Up}, [&] {
++    shiftDays(-7);
++    dirty = true;
++  });
++  ButtonNavigator::onPress({MappedInputManager::Button::Down}, [&] {
++    shiftDays(7);
++    dirty = true;
++  });
++  ButtonNavigator::onPress({MappedInputManager::Button::Confirm}, [&] {
++    jumpToToday();
++    dirty = true;
++  });
++  ButtonNavigator::onPress({MappedInputManager::Button::Back}, [&] { finish(); });
++
++  if (dirty) requestUpdate();
++}
++
++void CalendarActivity::render(RenderLock&&) {
++  const auto& metrics = UITheme::getInstance().getMetrics();
++  const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
++
++  renderer.clearScreen();
++  GUI.drawHeader(renderer, Rect{safe.x, safe.y + metrics.topPadding, safe.width, metrics.headerHeight},
++                 tr(STR_CALENDAR));
++
++  int y = safe.y + metrics.topPadding + metrics.headerHeight + 12;
++
++  // Month + year
++  char title[32];
++  snprintf(title, sizeof(title), "%s %d", MONTH_LABELS[selMonth - 1], selYear);
++  renderer.drawCenteredText(UI_12_FONT_ID, y, title);
++  y += renderer.getLineHeight(UI_12_FONT_ID) + 10;
++
++  // Column layout
++  const int gridLeft = safe.x + 10;
++  const int gridWidth = safe.width - 20;
++  const int colW = gridWidth / GRID_COLS;
++  const int cellH = 44;
++
++  for (int c = 0; c < GRID_COLS; c++) {
++    const char* lbl = WEEKDAY_LABELS[c];
++    const int tw = renderer.getTextWidth(SMALL_FONT_ID, lbl);
++    renderer.drawText(SMALL_FONT_ID, gridLeft + c * colW + (colW - tw) / 2, y, lbl);
++  }
++  y += renderer.getLineHeight(SMALL_FONT_ID) + 6;
++  renderer.drawLine(gridLeft, y, gridLeft + GRID_COLS * colW, y);
++  y += 6;
++
++  // Day cells
++  const int firstWeekday = toMondayFirst(lunar::weekdayFromJd(lunar::jdFromDate(1, selMonth, selYear)));
++  const int monthDays = lunar::daysInMonth(selMonth, selYear);
++
++  for (int row = 0; row < GRID_ROWS; row++) {
++    for (int col = 0; col < GRID_COLS; col++) {
++      const int day = row * GRID_COLS + col - firstWeekday + 1;
++      if (day < 1 || day > monthDays) continue;
++
++      const int cx = gridLeft + col * colW;
++      const int cy = y + row * cellH;
++
++      char buf[4];
++      snprintf(buf, sizeof(buf), "%d", day);
++      const int tw = renderer.getTextWidth(UI_10_FONT_ID, buf);
++      const int tx = cx + (colW - tw) / 2;
++      const int ty = cy + (cellH - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
++
++      const bool isToday = (todayYear != 0 && day == todayDay && selMonth == todayMonth && selYear == todayYear);
++      if (day == selDay) {
++        // Selection: a box, so it reads on a 1-bit panel without a fill that
++        // would swallow the digit.
++        renderer.drawRect(cx + 3, cy + 2, colW - 6, cellH - 6, 2, true);
++      } else if (isToday) {
++        renderer.drawLine(cx + 10, cy + cellH - 7, cx + colW - 10, cy + cellH - 7);
++      }
++      renderer.drawText(UI_10_FONT_ID, tx, ty, buf);
++    }
++  }
++
++  y += GRID_ROWS * cellH + 10;
++  renderer.drawLine(gridLeft, y, gridLeft + GRID_COLS * colW, y);
++  y += 10;
++
++  // Selected day: solar line, then the lunar date. Only this one day is
++  // converted — see the note in the header about software-float cost.
++  char line[64];
++  snprintf(line, sizeof(line), "%04d-%02d-%02d", selYear, selMonth, selDay);
++  renderer.drawText(UI_10_FONT_ID, gridLeft, y, line);
++  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
++
++  const lunar::LunarDate ld = lunar::solarToLunar(selDay, selMonth, selYear);
++  snprintf(line, sizeof(line), "%02d/%02d/%d%s %s", ld.day, ld.month, ld.year, ld.leap ? " (nhuận)" : "",
++           tr(STR_LUNAR_DATE));
++  renderer.drawText(UI_10_FONT_ID, gridLeft, y, line);
++  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
++
++  if (todayYear == 0) {
++    renderer.drawText(SMALL_FONT_ID, gridLeft, y, tr(STR_CLOCK_NOT_SET));
++  }
++
++  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_TODAY), "<", ">");
++  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
++  renderer.displayBuffer();
++}
+diff --git a/src/activities/util/CalendarActivity.h b/src/activities/util/CalendarActivity.h
+new file mode 100644
+index 0000000..b498da6
+--- /dev/null
++++ b/src/activities/util/CalendarActivity.h
+@@ -0,0 +1,43 @@
++#pragma once
++
++#include <Rtc.h>
++
++#include "activities/Activity.h"
++#include "util/ButtonNavigator.h"
++
++class GfxRenderer;
++
++// Month-grid calendar with the Vietnamese lunar date (âm lịch) for the selected day.
++//
++// Resource note (AGENTS.md): no heap. The grid is recomputed from the selected
++// y/m/d on every render into stack locals, and only the SELECTED day is converted
++// to lunar — the ESP32-C3 has no FPU, so the trig in the conversion runs in
++// software float and converting all 42 cells would cost ~40x more for information
++// the screen has no room to show anyway.
++//
++// The date comes from HalClock::getLocalDateTime(), which on the plain X4 is
++// backed by the software clock (that board has no RTC chip). When no clock is
++// available the screen still opens, starting at a fixed epoch, and says so.
++class CalendarActivity final : public Activity {
++ public:
++  CalendarActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
++
++  void onEnter() override;
++  void loop() override;
++  void render(RenderLock&&) override;
++
++ private:
++  ButtonNavigator buttonNavigator;
++
++  int selYear = 2026;
++  int selMonth = 1;
++  int selDay = 1;
++
++  int todayYear = 0;  // 0 = clock unavailable
++  int todayMonth = 0;
++  int todayDay = 0;
++
++  void loadToday();
++  void jumpToToday();
++  void shiftDays(int delta);  // move the selection, carrying across months/years
++};
+diff --git a/src/util/LunarCalendar.cpp b/src/util/LunarCalendar.cpp
+new file mode 100644
+index 0000000..e02fc7b
+--- /dev/null
++++ b/src/util/LunarCalendar.cpp
+@@ -0,0 +1,180 @@
++#include "LunarCalendar.h"
++
++#include <cmath>
++
++namespace lunar {
++namespace {
++
++constexpr double PI_ = 3.14159265358979323846;
++// Mean synodic month (days) and the Julian day of new moon k=0, per Meeus.
++constexpr double SYNODIC_MONTH = 29.530588853;
++constexpr double NEW_MOON_EPOCH = 2415021.076998695;
++
++inline int32_t iFloor(double d) { return static_cast<int32_t>(std::floor(d)); }
++
++// Julian day of the k-th new moon since 1900-01-01, from Meeus' "Astronomical
++// Algorithms" ch. 49 (the truncated series Hồ Ngọc Đức's reference uses).
++double newMoon(int32_t k) {
++  const double T = static_cast<double>(k) / 1236.85;
++  const double T2 = T * T;
++  const double T3 = T2 * T;
++  const double dr = PI_ / 180.0;
++
++  double jd1 = 2415020.75933 + 29.53058868 * k + 0.0001178 * T2 - 0.000000155 * T3;
++  jd1 += 0.00033 * std::sin((166.56 + 132.87 * T - 0.009173 * T2) * dr);
++
++  const double M = 359.2242 + 29.10535608 * k - 0.0000333 * T2 - 0.00000347 * T3;     // sun's mean anomaly
++  const double Mpr = 306.0253 + 385.81691806 * k + 0.0107306 * T2 + 0.00001236 * T3;  // moon's mean anomaly
++  const double F = 21.2964 + 390.67050646 * k - 0.0016528 * T2 - 0.00000239 * T3;     // moon's argument of latitude
++
++  double c1 = (0.1734 - 0.000393 * T) * std::sin(M * dr) + 0.0021 * std::sin(2 * dr * M);
++  c1 -= 0.4068 * std::sin(Mpr * dr);
++  c1 += 0.0161 * std::sin(dr * 2 * Mpr);
++  c1 -= 0.0004 * std::sin(dr * 3 * Mpr);
++  c1 += 0.0104 * std::sin(dr * 2 * F);
++  c1 -= 0.0051 * std::sin(dr * (M + Mpr));
++  c1 -= 0.0074 * std::sin(dr * (M - Mpr));
++  c1 += 0.0004 * std::sin(dr * (2 * F + M));
++  c1 -= 0.0004 * std::sin(dr * (2 * F - M));
++  c1 -= 0.0006 * std::sin(dr * (2 * F + Mpr));
++  c1 += 0.0010 * std::sin(dr * (2 * F - Mpr));
++  c1 += 0.0005 * std::sin(dr * (2 * Mpr + M));
++
++  double deltat;
++  if (T < -11.0) {
++    deltat = 0.001 + 0.000839 * T + 0.0002261 * T2 - 0.00000845 * T3 - 0.000000081 * T * T3;
++  } else {
++    deltat = -0.000278 + 0.000265 * T + 0.000262 * T2;
++  }
++  return jd1 + c1 - deltat;
++}
++
++// Apparent longitude of the sun, in radians, at Julian day `jdn` (TT).
++double sunLongitude(double jdn) {
++  const double T = (jdn - 2451545.0) / 36525.0;
++  const double T2 = T * T;
++  const double dr = PI_ / 180.0;
++
++  const double M = 357.52910 + 35999.05030 * T - 0.0001559 * T2 - 0.00000048 * T * T2;
++  const double L0 = 280.46645 + 36000.76983 * T + 0.0003032 * T2;
++
++  double dl = (1.914600 - 0.004817 * T - 0.000014 * T2) * std::sin(dr * M);
++  dl += (0.019993 - 0.000101 * T) * std::sin(dr * 2 * M);
++  dl += 0.000290 * std::sin(dr * 3 * M);
++
++  double l = (L0 + dl) * dr;
++  l -= PI_ * 2.0 * static_cast<double>(iFloor(l / (PI_ * 2.0)));  // normalise to [0, 2pi)
++  return l;
++}
++
++// Solar term index 0..11 (each 30 degrees) for the local day `dayNumber`.
++int sunLongitudeIndex(int32_t dayNumber, double timeZone) {
++  return static_cast<int>(iFloor(sunLongitude(dayNumber - 0.5 - timeZone / 24.0) / PI_ * 6.0));
++}
++
++// Local day on which the k-th new moon falls.
++int32_t newMoonDay(int32_t k, double timeZone) { return iFloor(newMoon(k) + 0.5 + timeZone / 24.0); }
++
++// Local day the 11th lunar month of `year` begins (the month containing the winter solstice).
++int32_t lunarMonth11(int year, double timeZone) {
++  const double off = static_cast<double>(jdFromDate(31, 12, year)) - 2415021.0;
++  int32_t k = iFloor(off / SYNODIC_MONTH);
++  int32_t nm = newMoonDay(k, timeZone);
++  if (sunLongitudeIndex(nm, timeZone) >= 9) nm = newMoonDay(k - 1, timeZone);
++  return nm;
++}
++
++// Index (from month 11) of the leap month in a 13-month lunar year.
++int leapMonthOffset(int32_t a11, double timeZone) {
++  const int32_t k = iFloor((a11 - NEW_MOON_EPOCH) / SYNODIC_MONTH + 0.5);
++  int i = 1;
++  int last = 0;
++  int arc = sunLongitudeIndex(newMoonDay(k + i, timeZone), timeZone);
++  do {
++    last = arc;
++    i++;
++    arc = sunLongitudeIndex(newMoonDay(k + i, timeZone), timeZone);
++  } while (arc != last && i < 14);
++  return i - 1;
++}
++
++}  // namespace
++
++int32_t jdFromDate(int day, int month, int year) {
++  const int32_t a = (14 - month) / 12;
++  const int32_t y = year + 4800 - a;
++  const int32_t m = month + 12 * a - 3;
++  int32_t jd = day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
++  if (jd < 2299161) {  // before the Gregorian cutover: fall back to the Julian calendar
++    jd = day + (153 * m + 2) / 5 + 365 * y + y / 4 - 32083;
++  }
++  return jd;
++}
++
++void jdToDate(int32_t jd, int& day, int& month, int& year) {
++  int32_t a, b, c;
++  if (jd > 2299160) {  // Gregorian
++    a = jd + 32044;
++    b = (4 * a + 3) / 146097;
++    c = a - (b * 146097) / 4;
++  } else {  // Julian
++    b = 0;
++    c = jd + 32082;
++  }
++  const int32_t d = (4 * c + 3) / 1461;
++  const int32_t e = c - (1461 * d) / 4;
++  const int32_t m = (5 * e + 2) / 153;
++
++  day = static_cast<int>(e - (153 * m + 2) / 5 + 1);
++  month = static_cast<int>(m + 3 - 12 * (m / 10));
++  year = static_cast<int>(b * 100 + d - 4800 + m / 10);
++}
++
++LunarDate solarToLunar(int day, int month, int year, double timeZone) {
++  const int32_t dayNumber = jdFromDate(day, month, year);
++  const int32_t k = iFloor((static_cast<double>(dayNumber) - NEW_MOON_EPOCH) / SYNODIC_MONTH);
++
++  int32_t monthStart = newMoonDay(k + 1, timeZone);
++  if (monthStart > dayNumber) monthStart = newMoonDay(k, timeZone);
++
++  int32_t a11 = lunarMonth11(year, timeZone);
++  int32_t b11 = a11;
++  int lunarYear;
++  if (a11 >= monthStart) {
++    lunarYear = year;
++    a11 = lunarMonth11(year - 1, timeZone);
++  } else {
++    lunarYear = year + 1;
++    b11 = lunarMonth11(year + 1, timeZone);
++  }
++
++  LunarDate out;
++  out.day = static_cast<int>(dayNumber - monthStart + 1);
++
++  const int diff = static_cast<int>((monthStart - a11) / 29);
++  int lunarMonth = diff + 11;
++  bool leap = false;
++  if (b11 - a11 > 365) {  // 13 lunar months: one of them is intercalary
++    const int leapDiff = leapMonthOffset(a11, timeZone);
++    if (diff >= leapDiff) {
++      lunarMonth = diff + 10;
++      if (diff == leapDiff) leap = true;
++    }
++  }
++  if (lunarMonth > 12) lunarMonth -= 12;
++  if (lunarMonth >= 11 && diff < 4) lunarYear -= 1;
++
++  out.month = lunarMonth;
++  out.year = lunarYear;
++  out.leap = leap;
++  return out;
++}
++
++int daysInMonth(int month, int year) {
++  static constexpr int kDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
++  if (month < 1 || month > 12) return 30;
++  if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) return 29;
++  return kDays[month - 1];
++}
++
++}  // namespace lunar
+diff --git a/src/util/LunarCalendar.h b/src/util/LunarCalendar.h
+new file mode 100644
+index 0000000..876181e
+--- /dev/null
++++ b/src/util/LunarCalendar.h
+@@ -0,0 +1,44 @@
++#pragma once
++
++#include <cstdint>
++
++// Vietnamese lunar calendar (âm lịch) conversion.
++//
++// Implements Hồ Ngọc Đức's algorithm (http://www.informatik.uni-leipzig.de/~duc/amlich/),
++// the reference implementation Vietnamese calendars are checked against. Vietnam keeps its
++// own lunar calendar rather than following China's: the new-moon and solar-longitude
++// instants are evaluated at UTC+7, so the two disagree by a day several times a decade.
++//
++// Resource note (AGENTS.md "Resource Justification"): every function here is pure
++// arithmetic over stack-local `double`/`int`. No heap, no statics, no I/O. The ESP32-C3
++// has no hardware FPU, so the trig runs in software float — one conversion costs on the
++// order of a few hundred microseconds, which is why callers convert the selected day
++// only, not all 42 grid cells.
++namespace lunar {
++
++// Vietnam's civil offset; the lunar calendar is defined against it.
++constexpr double VIETNAM_TIMEZONE = 7.0;
++
++struct LunarDate {
++  int day = 1;
++  int month = 1;
++  int year = 2000;
++  bool leap = false;  // true when this is the intercalary repeat of `month`
++};
++
++// Gregorian (or Julian before 1582-10-15) date -> Julian day number.
++int32_t jdFromDate(int day, int month, int year);
++
++// Inverse of jdFromDate.
++void jdToDate(int32_t jd, int& day, int& month, int& year);
++
++// Convert a solar (Gregorian) date to the Vietnamese lunar date.
++LunarDate solarToLunar(int day, int month, int year, double timeZone = VIETNAM_TIMEZONE);
++
++// Day of week for a Julian day number. 0 = Sunday .. 6 = Saturday.
++inline int weekdayFromJd(int32_t jd) { return static_cast<int>((jd + 1) % 7); }
++
++// Days in a Gregorian month (handles leap years).
++int daysInMonth(int month, int year);
++
++}  // namespace lunar

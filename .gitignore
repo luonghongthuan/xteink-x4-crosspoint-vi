@@ -1,0 +1,27 @@
+# KHONG BAO GIO commit — chua mat khau WiFi (XOR voi MAC, giai nguoc duoc de dang)
+wifi.json
+**/wifi.json
+
+# Dump firmware goc — chua MAC thiet bi va co the ca thong tin dang nhap WiFi cu
+*-goc-*.bin
+*stock*.bin
+firmware-backup/
+
+# Sach — ban quyen
+*.epub
+*.mobi
+*.azw3
+
+# Anh ca nhan / hinh nen da sinh
+sleep/
+*.bmp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# macOS
+.DS_Store
+._*
