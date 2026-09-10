@@ -1,6 +1,8 @@
-# 07 — Sách học tiếng Anh
+# 07 — Sách tự soạn
 
-Repo kèm năm cuốn EPUB tự soạn, đặt trong [`books/`](../books/) dưới dạng văn bản thuần và dựng ra `.epub` bằng [`tools/build_epub.py`](../tools/build_epub.py).
+Repo kèm **11 cuốn EPUB** tự soạn, đặt trong [`books/`](../books/) dưới dạng văn bản thuần và dựng ra `.epub` bằng [`tools/build_epub.py`](../tools/build_epub.py).
+
+## Sách học tiếng Anh cho người lớn
 
 | Sách | Nội dung |
 |---|---|
@@ -9,6 +11,10 @@ Repo kèm năm cuốn EPUB tự soạn, đặt trong [`books/`](../books/) dư�
 | **Tiếng Anh cho Dân IT** | 8 chương: standup, code review, báo lỗi, kiến trúc, vận hành, phỏng vấn kỹ thuật, viết tài liệu, từ viết tắt |
 | **English Short Stories** | 5 truyện ngắn nguyên tác trình độ B1–B2, kèm chú giải và câu hỏi |
 | **IT Deep Dives** | 5 bài kỹ thuật chuyên sâu bằng tiếng Anh: độ trễ, HTTP, idempotency, caching, chất lượng mã |
+
+Mỗi chương gồm bảng từ vựng có phiên âm và nghĩa tiếng Việt, mẫu câu, và hội thoại mẫu.
+
+> Phiên âm dùng ký hiệu quốc tế, cần font tải về mới hiện đúng. Chọn Literata hoặc Gentium Book Plus — xem [08 — Font](08-font-va-cau-hinh.md#ba-tầng-font-đừng-nhầm-lẫn).
 
 ## Sách cho thiếu nhi (10–12 tuổi)
 
@@ -29,9 +35,6 @@ Ba điểm đáng chú ý trong nhóm sách thiếu nhi:
 
 **Nhân vật nữ chiếm phần lớn** trong tập truyện ngắn và xuất hiện đều trong sách danh nhân — vì sách soạn cho một bạn gái 10 tuổi.
 
-Mỗi chương gồm bảng từ vựng có phiên âm và nghĩa tiếng Việt, mẫu câu, và hội thoại mẫu.
-
-> Phiên âm dùng ký hiệu quốc tế, cần font tải về mới hiện đúng. Chọn Literata hoặc Gentium Book Plus — xem [08 — Font](08-font-va-cau-hinh.md#ba-tầng-font-đừng-nhầm-lẫn).
 
 ## Dựng lại
 
