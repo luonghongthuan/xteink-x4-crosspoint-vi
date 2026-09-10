@@ -70,6 +70,48 @@ chạy đúng cho mọi năm chứ không chỉ vài chục năm nạp sẵn.
 | OK | Xem Agenda |
 | Giữ OK | Nhảy về hôm nay |
 
+Màn hình Home hiển thị luôn ngày âm ngay trên nhãn menu (`Lịch · 29/7`), khỏi phải
+mở app mới biết.
+
+### Can chi và ngày hoàng đạo
+
+Màn hình Lịch in thêm ba dòng lịch vạn niên cho ngày đang chọn:
+
+```
+Đinh Hợi · Bính Thân · Bính Ngọ      ← can chi ngày · tháng · năm
+Chu Tước · Hắc đạo · Bạch Lộ         ← trực thần · chất ngày · tiết khí
+Giờ tốt: 01-03 07-09 11-13 13-15 19-21 21-23
+```
+
+Toàn bộ là số học số nguyên trên bảng tra `constexpr` nằm ở flash — **0 byte RAM**.
+Kiểm chứng bằng các mốc chuẩn: 2000-01-01 phải ra ngày *Mậu Ngọ*, năm 2026 phải là
+*Bính Ngọ*, Tết 2026 rơi vào 17/02/2026.
+
+### Thống kê đọc
+
+Đếm số trang, thời gian đọc, số phiên, số sách đọc xong, và **chuỗi ngày đọc liên
+tiếp** kèm kỷ lục. Lưu ở `/.crosspoint/reading_stats.json`, ghi xuống thẻ mỗi 25
+trang hoặc khi đóng sách — không ghi mỗi lần lật trang, vì làm vậy là nhét một lần
+serialize JSON cộng một lần ghi SD vào đường lật trang.
+
+### Màn hình ngủ dạng bảng điều khiển
+
+Thêm chế độ **Dashboard** vào `Settings → Display → Sleep Screen`: ngày dương, ngày
+âm, số trang và số phút đọc hôm nay, chuỗi ngày, tổng cộng, và tốc độ đọc trang/phút.
+
+### Làm tươi thông minh
+
+Bật ở `Settings → Display`. Chu kỳ làm tươi mặc định đếm số trang cào bằng — một
+trang đầu chương chỉ có ba dòng bị tính ngang một trang đặc chữ. Nhưng bóng mờ bám
+theo **lượng mực**, không theo số lần lật.
+
+Chế độ này đo độ phủ mực của trang sắp hiện (đếm bit bằng `__builtin_popcount` trên
+framebuffer 48KB, vài chục micro giây so với refresh tính bằng giây) rồi trừ ngân
+sách 1–3 bậc tùy độ dày. Trang đặc chữ được dọn sớm hơn, trang thưa thì không phí.
+
+Không tốn thêm RAM: đo trực tiếp trên framebuffer đang có, không giữ khung trước để
+so sánh — làm vậy sẽ mất thêm 48KB, đúng thứ chế độ một-buffer sinh ra để tiết kiệm.
+
 ### Đồng bộ giờ tự động
 
 `HalClock` được mở rộng để đồng bộ NTP ngay khi có WiFi, đặt sẵn múi giờ **UTC+7**.
@@ -136,8 +178,8 @@ python3 tools/split_epub.py truyen.epub -d out/ --chapters 250
 
 ## Bản vá
 
-[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 612 dòng
-thêm mới qua 13 file, áp lên nhánh `develop` của
+[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 1.209 dòng
+thêm mới qua 28 file, áp lên nhánh `develop` của
 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader).
 
 ```bash
@@ -148,8 +190,13 @@ git apply ../patches/0001-lich-am-duong.patch
 
 | File | Vai trò |
 |---|---|
-| `src/util/LunarCalendar.{cpp,h}` | Thuật toán quy đổi âm lịch |
+| `src/util/LunarCalendar.{cpp,h}` | Thuật toán quy đổi âm lịch, tiết khí |
+| `src/util/CanChi.{cpp,h}` | Can chi, trực thần, giờ hoàng đạo |
 | `src/activities/util/CalendarActivity.{cpp,h}` | Màn hình Lịch |
+| `src/ReadingStats.{cpp,h}` | Thống kê đọc và chuỗi ngày |
+| `src/activities/boot_sleep/SleepActivity.*` | Màn hình ngủ Dashboard |
+| `src/activities/reader/ReaderUtils.h` | Làm tươi theo lượng mực, đếm trang |
+| `lib/GfxRenderer/GfxRenderer.*` | `inkCoverage()` — đo độ phủ mực |
 | `lib/hal/HalClock.{cpp,h}` | Đồng bộ NTP, múi giờ UTC+7 |
 | `src/activities/ActivityManager.*`, `HomeActivity.*` | Đăng ký ứng dụng vào Home |
 | `lib/I18n/translations/*.yaml` | Chuỗi tiếng Việt và tiếng Anh |

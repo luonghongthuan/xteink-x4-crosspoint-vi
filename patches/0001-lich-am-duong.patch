@@ -1,8 +1,53 @@
+diff --git a/lib/GfxRenderer/GfxRenderer.cpp b/lib/GfxRenderer/GfxRenderer.cpp
+index 7c29c0c..886a652 100644
+--- a/lib/GfxRenderer/GfxRenderer.cpp
++++ b/lib/GfxRenderer/GfxRenderer.cpp
+@@ -1679,6 +1679,22 @@ HalDisplay::RefreshMode GfxRenderer::applyPromotedRefresh(const HalDisplay::Refr
+   return promotedRefresh_;
+ }
+ 
++uint8_t GfxRenderer::inkCoverage() const {
++  if (frameBuffer == nullptr || frameBufferSize == 0) {
++    return 0;
++  }
++  // Ink is a CLEARED bit: drawPixel() clears to draw and clearScreen() fills
++  // 0xFF for white, so the ink count is the complement of the set-bit count.
++  // Stepping a byte at a time rather than a word keeps this free of the
++  // unaligned-load fault the C3 raises on wider reads of a uint8_t buffer.
++  uint32_t setBits = 0;
++  for (uint32_t i = 0; i < frameBufferSize; ++i) {
++    setBits += static_cast<uint32_t>(__builtin_popcount(frameBuffer[i]));
++  }
++  const uint32_t totalBits = frameBufferSize * 8u;
++  return static_cast<uint8_t>(((totalBits - setBits) * 255u) / totalBits);
++}
++
+ void GfxRenderer::displayBuffer(HalDisplay::RefreshMode refreshMode) const {
+   auto elapsed = millis() - start_ms;
+   LOG_DBG("GFX", "Time = %lu ms from clearScreen to displayBuffer", elapsed);
+diff --git a/lib/GfxRenderer/GfxRenderer.h b/lib/GfxRenderer/GfxRenderer.h
+index b9c369a..46f516a 100644
+--- a/lib/GfxRenderer/GfxRenderer.h
++++ b/lib/GfxRenderer/GfxRenderer.h
+@@ -193,6 +193,13 @@ class GfxRenderer {
+   int getScreenWidth() const;
+   int getScreenHeight() const;
+   void tapToLogical(float nx, float ny, int& outX, int& outY) const;
++  // Share of the framebuffer currently carrying ink, 0 (blank) to 255 (solid).
++  // A popcount sweep of the 48KB buffer — roughly 12k word loads, tens of
++  // microseconds against a refresh measured in seconds — so it is cheap enough
++  // to call once per page turn. Used by the reader to spend its fast-refresh
++  // budget faster on dense pages, which are the ones that ghost.
++  uint8_t inkCoverage() const;
++
+   void displayBuffer(HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
+   // One-shot: the next displayBuffer()/displayBufferAsync() call uses `mode`
+   // instead of what its caller asked for, then the override clears itself.
 diff --git a/lib/I18n/translations/english.yaml b/lib/I18n/translations/english.yaml
-index 6d91063..3e54ce3 100644
+index 6d91063..5a03473 100644
 --- a/lib/I18n/translations/english.yaml
 +++ b/lib/I18n/translations/english.yaml
-@@ -464,3 +464,8 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
+@@ -464,3 +464,21 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
  STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF: "Do not power off!"
  STR_RECOVERY_MODE: "Recovery Mode"
  STR_RECOVERY_MODE_HINT: "Place firmware.bin on SD card root and select it"
@@ -11,11 +56,24 @@ index 6d91063..3e54ce3 100644
 +STR_TODAY: "Today"
 +STR_LUNAR_DATE: "Lunar"
 +STR_CLOCK_NOT_SET: "Connect to Wi-Fi to set the date"
++STR_SEXAGENARY: "Sexagenary"
++STR_AUSPICIOUS_DAY: "Auspicious"
++STR_INAUSPICIOUS_DAY: "Inauspicious"
++STR_AUSPICIOUS_HOURS: "Good hours"
++STR_SMART_REFRESH: "Smart refresh"
++STR_SLEEP_DASHBOARD: "Dashboard"
++STR_STATS_STREAK: "Streak"
++STR_STATS_PAGES: "pages"
++STR_STATS_MINUTES: "min"
++STR_STATS_BOOKS: "Finished"
++STR_STATS_TOTAL: "Total"
++STR_STATS_DAYS: "days"
++STR_STATS_BEST: "Best"
 diff --git a/lib/I18n/translations/vietnamese.yaml b/lib/I18n/translations/vietnamese.yaml
-index 2a306e3..d4eea8a 100644
+index 2a306e3..7641851 100644
 --- a/lib/I18n/translations/vietnamese.yaml
 +++ b/lib/I18n/translations/vietnamese.yaml
-@@ -448,3 +448,8 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
+@@ -448,3 +448,21 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
  STR_RECOVERY_MODE_HINT: "Đặt firmware.bin ở thư mục gốc thẻ SD rồi chọn"
  STR_ADD_HIDDEN_NETWORK: "Thêm mạng ẩn..."
  STR_ENTER_WIFI_SSID: "Nhập tên mạng (SSID)"
@@ -24,6 +82,19 @@ index 2a306e3..d4eea8a 100644
 +STR_TODAY: "Hôm nay"
 +STR_LUNAR_DATE: "Âm lịch"
 +STR_CLOCK_NOT_SET: "Nối Wi-Fi để lấy ngày tháng"
++STR_SEXAGENARY: "Can chi"
++STR_AUSPICIOUS_DAY: "Hoàng đạo"
++STR_INAUSPICIOUS_DAY: "Hắc đạo"
++STR_AUSPICIOUS_HOURS: "Giờ tốt"
++STR_SMART_REFRESH: "Làm tươi thông minh"
++STR_SLEEP_DASHBOARD: "Bảng đọc sách"
++STR_STATS_STREAK: "Chuỗi ngày"
++STR_STATS_PAGES: "trang"
++STR_STATS_MINUTES: "phút"
++STR_STATS_BOOKS: "Đã đọc xong"
++STR_STATS_TOTAL: "Tổng cộng"
++STR_STATS_DAYS: "ngày"
++STR_STATS_BEST: "Kỷ lục"
 diff --git a/lib/hal/HalClock.cpp b/lib/hal/HalClock.cpp
 index c793c9e..e34492f 100644
 --- a/lib/hal/HalClock.cpp
@@ -203,6 +274,233 @@ index 7fd2f6b..21e2066 100644
  
    // Get current hour (0-23) and minute (0-59).
    // Returns false if RTC is not available.
+diff --git a/src/CrossPointSettings.h b/src/CrossPointSettings.h
+index 43686d7..15c584a 100644
+--- a/src/CrossPointSettings.h
++++ b/src/CrossPointSettings.h
+@@ -22,6 +22,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
+     BLANK = 5,
+     QUICK_RESUME = 6,
+     TRANSPARENT_CUSTOM = 7,
++    DASHBOARD = 8,
+     SLEEP_SCREEN_MODE_COUNT
+   };
+   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
+@@ -280,6 +281,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
+   uint8_t uiTheme = LYRA;
+   // Sunlight fading compensation
+   uint8_t fadingFix = 0;
++  // Spend the fast-refresh budget by ink, not by page count: dense pages are
++  // the ones that ghost, so they cost more of the run. Off by default.
++  uint8_t smartRefresh = 0;
+   // Power button return from footnotes (1 = enabled, 0 = disabled)
+   uint8_t pwrBtnFootnoteBack = 1;
+   // Use book's embedded CSS styles for EPUB rendering (1 = enabled, 0 = disabled)
+diff --git a/src/ReadingStats.cpp b/src/ReadingStats.cpp
+new file mode 100644
+index 0000000..b69c101
+--- /dev/null
++++ b/src/ReadingStats.cpp
+@@ -0,0 +1,102 @@
++#include "ReadingStats.h"
++
++#include <Arduino.h>
++#include <HalClock.h>
++#include <Rtc.h>
++
++#include "CrossPointSettings.h"
++#include "util/LunarCalendar.h"
++
++void ReadingStats::toJson(JsonDocument& doc) const {
++  doc["totalPages"] = totalPages;
++  doc["totalSeconds"] = totalSeconds;
++  doc["sessions"] = sessions;
++  doc["booksFinished"] = booksFinished;
++  doc["todayPages"] = todayPages;
++  doc["todaySeconds"] = todaySeconds;
++  doc["streakDays"] = streakDays;
++  doc["bestStreakDays"] = bestStreakDays;
++  doc["lastReadJd"] = lastReadJd;
++}
++
++bool ReadingStats::fromJson(JsonVariantConst doc) {
++  totalPages = doc["totalPages"] | 0u;
++  totalSeconds = doc["totalSeconds"] | 0u;
++  sessions = doc["sessions"] | 0u;
++  booksFinished = doc["booksFinished"] | 0u;
++  todayPages = doc["todayPages"] | 0u;
++  todaySeconds = doc["todaySeconds"] | 0u;
++  streakDays = doc["streakDays"] | static_cast<uint16_t>(0);
++  bestStreakDays = doc["bestStreakDays"] | static_cast<uint16_t>(0);
++  lastReadJd = doc["lastReadJd"] | 0;
++  return true;
++}
++
++int32_t ReadingStats::currentJd() {
++  Rtc::DateTime dt;
++  if (!halClock.getLocalDateTime(dt, SETTINGS.clockUtcOffsetQ)) {
++    return 0;
++  }
++  return lunar::jdFromDate(dt.day, dt.month, dt.year);
++}
++
++void ReadingStats::rollDayTo(const int32_t jd) {
++  if (jd == 0 || jd == lastReadJd) {
++    return;  // clock unset, or still the same day
++  }
++  if (lastReadJd == 0) {
++    streakDays = 1;  // first ever day with a working clock
++  } else if (jd == lastReadJd + 1) {
++    if (streakDays < UINT16_MAX) streakDays++;
++  } else if (jd > lastReadJd) {
++    streakDays = 1;  // a gap: the run restarts at today
++  } else {
++    // Clock moved backwards (NTP correction, manual change). Leave the streak
++    // alone rather than inventing a break out of a clock adjustment.
++    lastReadJd = jd;
++    return;
++  }
++  if (streakDays > bestStreakDays) bestStreakDays = streakDays;
++  lastReadJd = jd;
++  todayPages = 0;
++  todaySeconds = 0;
++}
++
++void ReadingStats::beginSession() {
++  rollDayTo(currentJd());
++  sessionStartMs = millis();
++  if (sessions < UINT32_MAX) sessions++;
++}
++
++void ReadingStats::endSession() {
++  if (sessionStartMs != 0) {
++    // Unsigned subtraction, so a millis() rollover after ~49 days still yields
++    // the true elapsed span rather than a huge number.
++    const uint32_t elapsed = (millis() - sessionStartMs) / 1000u;
++    totalSeconds += elapsed;
++    todaySeconds += elapsed;
++    sessionStartMs = 0;
++  }
++  pagesSinceSave = 0;
++  saveToFile();
++}
++
++void ReadingStats::notePageTurn() {
++  totalPages++;
++  todayPages++;
++  if (++pagesSinceSave >= SAVE_EVERY_PAGES) {
++    pagesSinceSave = 0;
++    saveToFile();
++  }
++}
++
++void ReadingStats::noteBookFinished() {
++  booksFinished++;
++  saveToFile();
++}
++
++uint32_t ReadingStats::pagesPerMinuteX10() const {
++  const uint32_t minutes = totalSeconds / 60u;
++  if (minutes == 0) return 0;
++  return (totalPages * 10u) / minutes;
++}
+diff --git a/src/ReadingStats.h b/src/ReadingStats.h
+new file mode 100644
+index 0000000..78a1df4
+--- /dev/null
++++ b/src/ReadingStats.h
+@@ -0,0 +1,70 @@
++#pragma once
++#include <ArduinoJson.h>
++#include <PersistableStore.h>
++
++#include <cstdint>
++
++// Lifetime reading tallies, plus the consecutive-days streak.
++//
++// Resource note (AGENTS.md "Resource Justification"): nine scalars, no heap and no
++// dynamic containers. The counters live in the singleton and are written to SD only
++// on session end or every SAVE_EVERY_PAGES turns, honouring the SD-throttling rule —
++// saving per page turn would put a JSON serialize and an SD write in the page-turn
++// path, behind storageMutex, on every turn.
++class ReadingStats : public PersistableStore<ReadingStats> {
++  ReadingStats() = default;
++
++  friend class PersistableStore<ReadingStats>;
++
++ public:
++  // Pages between background saves. A crash loses at most this many turns.
++  static constexpr uint32_t SAVE_EVERY_PAGES = 25;
++
++  uint32_t totalPages = 0;
++  uint32_t totalSeconds = 0;
++  uint32_t sessions = 0;
++  uint32_t booksFinished = 0;
++  uint32_t todayPages = 0;
++  uint32_t todaySeconds = 0;
++  uint16_t streakDays = 0;
++  uint16_t bestStreakDays = 0;
++  // Julian day number of the last day with any reading; 0 when never read.
++  int32_t lastReadJd = 0;
++
++  static const char* getFilePath() { return "/.crosspoint/reading_stats.json"; }
++  void toJson(JsonDocument& doc) const;
++  bool fromJson(JsonVariantConst doc);
++
++  // Call when a reader opens. Rolls the day over, extends or breaks the streak,
++  // and starts the session timer.
++  void beginSession();
++
++  // Call when a reader closes. Adds the elapsed time and saves.
++  void endSession();
++
++  // Call once per page actually shown. Saves every SAVE_EVERY_PAGES pages.
++  void notePageTurn();
++
++  void noteBookFinished();
++
++  // Minutes read today, for display.
++  uint32_t todayMinutes() const { return todaySeconds / 60; }
++  uint32_t totalMinutes() const { return totalSeconds / 60; }
++
++  // Average pages per minute over the lifetime, x10 so callers can print one
++  // decimal without floating point. 0 when nothing has been read.
++  uint32_t pagesPerMinuteX10() const;
++
++ private:
++  // millis() at beginSession(); 0 when no session is open.
++  uint32_t sessionStartMs = 0;
++  uint32_t pagesSinceSave = 0;
++
++  // Today's Julian day, or 0 when the clock has never been set. Reading with an
++  // unset clock still counts toward the lifetime totals but cannot move the streak.
++  static int32_t currentJd();
++
++  void rollDayTo(int32_t jd);
++};
++
++#define READING_STATS ReadingStats::getInstance()
+diff --git a/src/SettingsList.h b/src/SettingsList.h
+index ccbfa69..4cab9da 100644
+--- a/src/SettingsList.h
++++ b/src/SettingsList.h
+@@ -209,6 +209,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
+     sleepScreenValues[CrossPointSettings::BLANK] = StrId::STR_NONE_OPT;
+     sleepScreenValues[CrossPointSettings::QUICK_RESUME] = StrId::STR_QUICK_RESUME;
+     sleepScreenValues[CrossPointSettings::TRANSPARENT_CUSTOM] = StrId::STR_TRANSPARENT;
++    sleepScreenValues[CrossPointSettings::DASHBOARD] = StrId::STR_SLEEP_DASHBOARD;
+ 
+     std::vector<StrId> statusBarClockValues(CrossPointSettings::STATUS_BAR_CLOCK_MODE_COUNT);
+     statusBarClockValues[CrossPointSettings::STATUS_BAR_CLOCK_HIDE] = StrId::STR_HIDE;
+@@ -238,6 +239,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
+                           {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED,
+                            StrId::STR_THEME_ROUNDEDRAFF},
+                           "uiTheme", StrId::STR_CAT_DISPLAY),
++        SettingInfo::Toggle(StrId::STR_SMART_REFRESH, &CrossPointSettings::smartRefresh, "smartRefresh",
++                            StrId::STR_CAT_DISPLAY),
+         SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
+                             StrId::STR_CAT_DISPLAY),
+ #if FREEINK_CAP_FRONTLIGHT
 diff --git a/src/activities/ActivityManager.cpp b/src/activities/ActivityManager.cpp
 index fa34ad7..1bd028c 100644
 --- a/src/activities/ActivityManager.cpp
@@ -245,12 +543,160 @@ index acda644..ba852f7 100644
    void goToBrowser();
    void goToReader(std::string path, bool allowFastInitialRefresh = false);
    void goToSleep(bool fromTimeout = false);
+diff --git a/src/activities/boot_sleep/SleepActivity.cpp b/src/activities/boot_sleep/SleepActivity.cpp
+index f46145e..bc2f432 100644
+--- a/src/activities/boot_sleep/SleepActivity.cpp
++++ b/src/activities/boot_sleep/SleepActivity.cpp
+@@ -5,12 +5,14 @@
+ #include <FontCacheManager.h>
+ #include <FsHelpers.h>
+ #include <GfxRenderer.h>
++#include <HalClock.h>
+ #include <HalDisplay.h>
+ #include <HalGPIO.h>
+ #include <HalStorage.h>
+ #include <I18n.h>
+ #include <Memory.h>
+ #include <PNGdec.h>
++#include <Rtc.h>
+ #include <Txt.h>
+ #include <Xtc.h>
+ 
+@@ -23,11 +25,13 @@
+ 
+ #include "CrossPointSettings.h"
+ #include "CrossPointState.h"
++#include "ReadingStats.h"
+ #include "activities/reader/ReaderUtils.h"
+ #include "components/UITheme.h"
+ #include "fontIds.h"
+ #include "images/Logo120.h"
+ #include "images/MoonIcon.h"
++#include "util/LunarCalendar.h"
+ 
+ namespace {
+ 
+@@ -534,6 +538,8 @@ void SleepActivity::onEnter() {
+   switch (SETTINGS.sleepScreen) {
+     case (CrossPointSettings::SLEEP_SCREEN_MODE::BLANK):
+       return renderBlankSleepScreen();
++    case (CrossPointSettings::SLEEP_SCREEN_MODE::DASHBOARD):
++      return renderDashboardSleepScreen();
+     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
+       return renderCustomSleepScreen();
+     case (CrossPointSettings::SLEEP_SCREEN_MODE::COVER):
+@@ -549,6 +555,77 @@ void SleepActivity::onEnter() {
+   }
+ }
+ 
++void SleepActivity::renderDashboardSleepScreen() const {
++  const auto pageWidth = renderer.getScreenWidth();
++  const auto pageHeight = renderer.getScreenHeight();
++  const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
++  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
++  const int left = pageWidth / 8;
++
++  renderer.clearScreen();
++
++  int y = pageHeight / 6;
++  renderer.drawCenteredText(UI_12_FONT_ID, y, tr(STR_SLEEP_DASHBOARD), true, EpdFontFamily::BOLD);
++  y += renderer.getLineHeight(UI_12_FONT_ID) + 6;
++  renderer.drawLine(left, y, pageWidth - left, y);
++  y += 14;
++
++  // Today's date, solar over lunar. The clock is unset on a fresh device, in
++  // which case both lines are skipped rather than showing an epoch date.
++  char buf[72];
++  Rtc::DateTime dt;
++  if (halClock.getLocalDateTime(dt, SETTINGS.clockUtcOffsetQ)) {
++    snprintf(buf, sizeof(buf), "%02d/%02d/%04d", dt.day, dt.month, dt.year);
++    renderer.drawText(UI_10_FONT_ID, left, y, buf);
++    y += lineH + 2;
++
++    const lunar::LunarDate ld = lunar::solarToLunar(dt.day, dt.month, dt.year);
++    snprintf(buf, sizeof(buf), "%02d/%02d %s", ld.day, ld.month, tr(STR_LUNAR_DATE));
++    renderer.drawText(SMALL_FONT_ID, left, y, buf);
++    y += smallH + 16;
++  }
++
++  const ReadingStats& stats = READING_STATS;
++
++  // Today
++  snprintf(buf, sizeof(buf), "%s: %lu %s · %lu %s", tr(STR_TODAY), static_cast<unsigned long>(stats.todayPages),
++           tr(STR_STATS_PAGES), static_cast<unsigned long>(stats.todayMinutes()), tr(STR_STATS_MINUTES));
++  renderer.drawText(UI_10_FONT_ID, left, y, buf);
++  y += lineH + 6;
++
++  // Streak, with the record alongside once one has been beaten
++  if (stats.bestStreakDays > stats.streakDays) {
++    snprintf(buf, sizeof(buf), "%s: %u %s (%s %u)", tr(STR_STATS_STREAK), stats.streakDays, tr(STR_STATS_DAYS),
++             tr(STR_STATS_BEST), stats.bestStreakDays);
++  } else {
++    snprintf(buf, sizeof(buf), "%s: %u %s", tr(STR_STATS_STREAK), stats.streakDays, tr(STR_STATS_DAYS));
++  }
++  renderer.drawText(UI_10_FONT_ID, left, y, buf);
++  y += lineH + 6;
++
++  snprintf(buf, sizeof(buf), "%s: %lu", tr(STR_STATS_BOOKS), static_cast<unsigned long>(stats.booksFinished));
++  renderer.drawText(UI_10_FONT_ID, left, y, buf);
++  y += lineH + 14;
++
++  renderer.drawLine(left, y, pageWidth - left, y);
++  y += 12;
++
++  // Lifetime totals, and reading pace as one decimal without floating point.
++  snprintf(buf, sizeof(buf), "%s: %lu %s · %lu %s", tr(STR_STATS_TOTAL), static_cast<unsigned long>(stats.totalPages),
++           tr(STR_STATS_PAGES), static_cast<unsigned long>(stats.totalMinutes()), tr(STR_STATS_MINUTES));
++  renderer.drawText(SMALL_FONT_ID, left, y, buf);
++  y += smallH + 4;
++
++  const uint32_t paceX10 = stats.pagesPerMinuteX10();
++  if (paceX10 > 0) {
++    snprintf(buf, sizeof(buf), "%lu.%lu %s/%s", static_cast<unsigned long>(paceX10 / 10),
++             static_cast<unsigned long>(paceX10 % 10), tr(STR_STATS_PAGES), tr(STR_STATS_MINUTES));
++    renderer.drawText(SMALL_FONT_ID, left, y, buf);
++  }
++
++  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
++}
++
+ void SleepActivity::renderCustomSleepScreen() const {
+   // Look for sleep.bmp on the root of the sd card to determine if we should
+   // render a custom sleep screen instead of the default.
+diff --git a/src/activities/boot_sleep/SleepActivity.h b/src/activities/boot_sleep/SleepActivity.h
+index c866f2d..c3b9f0b 100644
+--- a/src/activities/boot_sleep/SleepActivity.h
++++ b/src/activities/boot_sleep/SleepActivity.h
+@@ -23,6 +23,8 @@ class SleepActivity final : public Activity {
+   void renderLastScreenSleepScreen() const;
+   void renderTransparentCustomSleepScreen() const;
+   void renderBlankSleepScreen() const;
++  // Reading tallies plus today's date, for the sleep screen as a status card.
++  void renderDashboardSleepScreen() const;
+ 
+   bool fromTimeout = false;
+ };
 diff --git a/src/activities/home/HomeActivity.cpp b/src/activities/home/HomeActivity.cpp
-index c29d9b2..edc0a2a 100644
+index c29d9b2..b9357ff 100644
 --- a/src/activities/home/HomeActivity.cpp
 +++ b/src/activities/home/HomeActivity.cpp
-@@ -23,7 +23,7 @@
+@@ -4,9 +4,11 @@
+ #include <Epub.h>
+ #include <FsHelpers.h>
+ #include <GfxRenderer.h>
++#include <HalClock.h>
+ #include <HalDisplay.h>
+ #include <HalStorage.h>
+ #include <I18n.h>
++#include <Rtc.h>
+ #include <Utf8.h>
+ #include <Xtc.h>
+ 
+@@ -21,9 +23,10 @@
+ #include "RecentBooksStore.h"
+ #include "components/UITheme.h"
  #include "fontIds.h"
++#include "util/LunarCalendar.h"
  
  int HomeActivity::getMenuItemCount() const {
 -  int count = 4;  // File Browser, Recents, File transfer, Settings
@@ -258,7 +704,7 @@ index c29d9b2..edc0a2a 100644
    if (!recentBooks.empty()) {
      count += recentBooks.size();
    }
-@@ -191,6 +191,9 @@ void HomeActivity::loop() {
+@@ -191,6 +194,9 @@ void HomeActivity::loop() {
        case HomeMenuItem::FILE_TRANSFER:
          onFileTransferOpen();
          break;
@@ -268,25 +714,49 @@ index c29d9b2..edc0a2a 100644
        case HomeMenuItem::SETTINGS_MENU:
          onSettingsOpen();
          break;
-@@ -306,8 +309,8 @@ void HomeActivity::render(RenderLock&&) {
+@@ -278,6 +284,19 @@ void HomeActivity::loop() {
+   }
+ }
  
++void HomeActivity::buildCalendarLabel() {
++  // One lunar conversion per Home render. The conversion is software float on the
++  // C3 (a few hundred microseconds); an e-ink refresh is 1-2 seconds, so it does
++  // not show. Falls back to the plain label when the clock has never been set.
++  Rtc::DateTime dt;
++  if (!halClock.getLocalDateTime(dt, SETTINGS.clockUtcOffsetQ)) {
++    snprintf(calendarLabel, sizeof(calendarLabel), "%s", tr(STR_CALENDAR));
++    return;
++  }
++  const lunar::LunarDate ld = lunar::solarToLunar(dt.day, dt.month, dt.year);
++  snprintf(calendarLabel, sizeof(calendarLabel), "%s · %d/%d", tr(STR_CALENDAR), ld.day, ld.month);
++}
++
+ void HomeActivity::render(RenderLock&&) {
+   const auto& metrics = UITheme::getInstance().getMetrics();
+   const auto pageWidth = renderer.getScreenWidth();
+@@ -304,10 +323,12 @@ void HomeActivity::render(RenderLock&&) {
+                           recentBooks, selectorIndex, coverRendered, coverBufferStored, bufferRestored,
+                           std::bind(&HomeActivity::storeCoverBuffer, this));
+ 
++  buildCalendarLabel();
++
    // Build menu items dynamically
    std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
 -                                        tr(STR_SETTINGS_TITLE)};
 -  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings};
-+                                        tr(STR_CALENDAR), tr(STR_SETTINGS_TITLE)};
++                                        calendarLabel, tr(STR_SETTINGS_TITLE)};
 +  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Bookmark, Settings};
  
    if (hasOpdsServers) {
      menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
-@@ -356,3 +359,5 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
+@@ -356,3 +377,5 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
  void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
  
  void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 +
 +void HomeActivity::onCalendarOpen() { activityManager.goToCalendar(); }
 diff --git a/src/activities/home/HomeActivity.h b/src/activities/home/HomeActivity.h
-index 4ea540e..c3150cd 100644
+index 4ea540e..92d61ad 100644
 --- a/src/activities/home/HomeActivity.h
 +++ b/src/activities/home/HomeActivity.h
 @@ -42,6 +42,8 @@ class HomeActivity final : public Activity {
@@ -306,14 +776,22 @@ index 4ea540e..c3150cd 100644
      if (idx == i) return HomeMenuItem::SETTINGS_MENU;
      return HomeMenuItem::NONE;
    }
-@@ -61,6 +64,7 @@ class HomeActivity final : public Activity {
+@@ -61,8 +64,15 @@ class HomeActivity final : public Activity {
    void onRecentsOpen();
    void onSettingsOpen();
    void onFileTransferOpen();
 +  void onCalendarOpen();
    void onOpdsBrowserOpen();
  
++  // Menu label for the Calendar row, carrying today's lunar day when the clock is
++  // set ("Lịch · 29/7"). Held as a member because drawButtonMenu takes
++  // `const char*` and must outlive the call; rebuilt in render().
++  char calendarLabel[40] = {};
++  void buildCalendarLabel();
++
    int getMenuItemCount() const;
+   bool storeCoverBuffer();    // Store frame buffer for cover image
+   bool restoreCoverBuffer();  // Restore frame buffer from stored cover
 diff --git a/src/activities/network/WifiSelectionActivity.cpp b/src/activities/network/WifiSelectionActivity.cpp
 index f9968b2..3690b27 100644
 --- a/src/activities/network/WifiSelectionActivity.cpp
@@ -344,12 +822,164 @@ index f9968b2..3690b27 100644
          SETTINGS.clockHasBeenSynced = 1;
          SETTINGS.saveToFile();
        }
+diff --git a/src/activities/reader/EpubReaderActivity.cpp b/src/activities/reader/EpubReaderActivity.cpp
+index 7059954..e81aed7 100644
+--- a/src/activities/reader/EpubReaderActivity.cpp
++++ b/src/activities/reader/EpubReaderActivity.cpp
+@@ -1584,8 +1584,9 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
+     } else if (overlapRefresh) {
+       ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh, /*async=*/true);
+     } else {
++      const int cost = ReaderUtils::refreshCost(renderer);
+       renderer.displayGrayscaleBase(HalDisplay::FAST_REFRESH);
+-      pagesUntilFullRefresh--;
++      ReaderUtils::advanceRefreshCycle(pagesUntilFullRefresh, cost);
+     }
+   } else {
+     ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
+diff --git a/src/activities/reader/ReaderActivity.cpp b/src/activities/reader/ReaderActivity.cpp
+index cf97c24..4900764 100644
+--- a/src/activities/reader/ReaderActivity.cpp
++++ b/src/activities/reader/ReaderActivity.cpp
+@@ -10,6 +10,7 @@
+ #include "CrossPointState.h"
+ #include "EpubReaderActivity.h"
+ #include "ReaderUtils.h"
++#include "ReadingStats.h"
+ #include "RecentBooksStore.h"
+ #include "SdCardFontSystem.h"
+ #include "TxtReaderActivity.h"
+@@ -63,6 +64,7 @@ void ReaderActivity::onEnter() {
+     return;
+   }
+ 
++  READING_STATS.beginSession();
+   APP_STATE.openEpubPath = bookPath;
+   APP_STATE.saveToFile();
+   RECENT_BOOKS.addBook(bookPath, getBookTitle(), getBookAuthor(), getBookThumbBmpPath());
+@@ -70,6 +72,7 @@ void ReaderActivity::onEnter() {
+ }
+ 
+ void ReaderActivity::onExit() {
++  READING_STATS.endSession();
+   Activity::onExit();
+ 
+   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+diff --git a/src/activities/reader/ReaderUtils.h b/src/activities/reader/ReaderUtils.h
+index ddb303e..f432050 100644
+--- a/src/activities/reader/ReaderUtils.h
++++ b/src/activities/reader/ReaderUtils.h
+@@ -7,7 +7,10 @@
+ #include <Logging.h>
+ #include <components/bars/tap-zones.h>
+ 
++#include <algorithm>
++
+ #include "MappedInputManager.h"
++#include "ReadingStats.h"
+ #include "activities/ActivityManager.h"
+ 
+ namespace ReaderUtils {
+@@ -154,6 +157,41 @@ inline bool isTouchMenuGesture(const GfxRenderer& renderer, const MappedInputMan
+   return isTouchMenuTap(renderer, input);
+ }
+ 
++// How much of the fast-refresh run the page about to be shown consumes.
++//
++// Counting page turns treats a chapter-opening page with three lines on it the
++// same as a solid block of text, but ghosting tracks ink, not turns. With smart
++// refresh on, a dense page spends up to 3 steps of the budget and a sparse one
++// still spends 1, so the cleaning pass lands where it is actually needed. The
++// thresholds are on coverage of the whole panel: body text on this display sits
++// near 10-12%, so 8% marks "a normal page of prose" and 16% "denser than prose"
++// (tables, dark images).
++//
++// Returns 1 when the setting is off, leaving the original cadence untouched.
++inline int refreshCost(const GfxRenderer& renderer) {
++  if (!SETTINGS.smartRefresh) {
++    return 1;
++  }
++  const uint8_t ink = renderer.inkCoverage();
++  if (ink >= 41) return 3;  // ~16% of the panel and up
++  if (ink >= 20) return 2;  // ~8%
++  return 1;
++}
++
++// Charge `cost` against the run and report whether the cleaning pass is due.
++inline void advanceRefreshCycle(int& pagesUntilFullRefresh, int cost) {
++  // The single point every reader passes through exactly once per page shown,
++  // so it is where a page turn is counted.
++  READING_STATS.notePageTurn();
++  if (pagesUntilFullRefresh <= 1) {
++    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
++  } else {
++    // Never drop below 1: 1 is what triggers the cleaning pass on the next turn,
++    // and skipping past it would postpone the refresh by a whole run.
++    pagesUntilFullRefresh = std::max(1, pagesUntilFullRefresh - cost);
++  }
++}
++
+ // One helper, blocking or deferred: the async form starts the refresh and
+ // returns so the caller can overlap CPU work with the panel's refresh time.
+ // Async callers must not touch the framebuffer until
+@@ -161,16 +199,16 @@ inline bool isTouchMenuGesture(const GfxRenderer& renderer, const MappedInputMan
+ // before the next page turn (the tiled grayscale cleanup does).
+ inline void displayWithRefreshCycle(const GfxRenderer& renderer, int& pagesUntilFullRefresh, bool async = false) {
+   const auto mode = (pagesUntilFullRefresh <= 1) ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH;
++  // Measured before the refresh starts: an async refresh hands the panel the
++  // buffer and returns, and the caller must not touch it again until
++  // waitRefreshComplete().
++  const int cost = refreshCost(renderer);
+   if (async) {
+     renderer.displayBufferAsync(mode);
+   } else {
+     renderer.displayBuffer(mode);
+   }
+-  if (pagesUntilFullRefresh <= 1) {
+-    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+-  } else {
+-    pagesUntilFullRefresh--;
+-  }
++  advanceRefreshCycle(pagesUntilFullRefresh, cost);
+ }
+ 
+ // Display the B/W base of a page whose grayscale pass follows. Panels that
+@@ -184,12 +222,9 @@ inline void displayBaseWithRefreshCycle(const GfxRenderer& renderer, int& pagesU
+     return;
+   }
+   const auto mode = (pagesUntilFullRefresh <= 1) ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH;
++  const int cost = refreshCost(renderer);
+   renderer.displayGrayscaleBase(mode);
+-  if (pagesUntilFullRefresh <= 1) {
+-    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+-  } else {
+-    pagesUntilFullRefresh--;
+-  }
++  advanceRefreshCycle(pagesUntilFullRefresh, cost);
+ }
+ 
+ // Grayscale anti-aliasing pass. Renders content twice (LSB + MSB) to build
+diff --git a/src/activities/reader/XtcReaderActivity.cpp b/src/activities/reader/XtcReaderActivity.cpp
+index 8d2f6d8..86a7e20 100644
+--- a/src/activities/reader/XtcReaderActivity.cpp
++++ b/src/activities/reader/XtcReaderActivity.cpp
+@@ -214,8 +214,9 @@ void XtcReaderActivity::renderPage() {
+       }
+       pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+     } else {
++      const int cost = ReaderUtils::refreshCost(renderer);
+       renderer.displayGrayscaleBase(HalDisplay::FAST_REFRESH);
+-      pagesUntilFullRefresh--;
++      ReaderUtils::advanceRefreshCycle(pagesUntilFullRefresh, cost);
+     }
+ 
+     renderer.clearScreen(0x00);
 diff --git a/src/activities/util/CalendarActivity.cpp b/src/activities/util/CalendarActivity.cpp
 new file mode 100644
-index 0000000..751ea4b
+index 0000000..38509f3
 --- /dev/null
 +++ b/src/activities/util/CalendarActivity.cpp
-@@ -0,0 +1,183 @@
+@@ -0,0 +1,226 @@
 +#include "CalendarActivity.h"
 +
 +#include <GfxRenderer.h>
@@ -361,6 +991,7 @@ index 0000000..751ea4b
 +#include "CrossPointSettings.h"
 +#include "components/UITheme.h"
 +#include "fontIds.h"
++#include "util/CanChi.h"
 +#include "util/LunarCalendar.h"
 +
 +namespace {
@@ -525,7 +1156,49 @@ index 0000000..751ea4b
 +  renderer.drawText(UI_10_FONT_ID, gridLeft, y, line);
 +  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 +
-+  if (todayYear == 0) {
++  // Almanac block. Each line is drawn only if it still fits above the button hints,
++  // so a shorter screen (or a taller font) drops detail from the bottom up instead
++  // of running off the panel.
++  // `safe` already excludes the button-hint strip, so its bottom edge is the limit.
++  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
++  const int bottomLimit = safe.y + safe.height;
++  const auto fits = [&]() { return y + smallH <= bottomLimit; };
++
++  const canchi::DayInfo info = canchi::dayInfo(lunar::jdFromDate(selDay, selMonth, selYear), ld);
++
++  if (fits()) {
++    snprintf(line, sizeof(line), "%s %s · %s %s · %s %s", canchi::canName(info.dayCan), canchi::chiName(info.dayChi),
++             canchi::canName(info.monthCan), canchi::chiName(info.monthChi), canchi::canName(info.yearCan),
++             canchi::chiName(info.yearChi));
++    renderer.drawText(SMALL_FONT_ID, gridLeft, y, line);
++    y += smallH + 3;
++  }
++
++  if (fits()) {
++    // tr() pastes its argument into StrId::, so the branch picks the id first.
++    const StrId quality = info.auspicious ? StrId::STR_AUSPICIOUS_DAY : StrId::STR_INAUSPICIOUS_DAY;
++    snprintf(line, sizeof(line), "%s · %s · %s", canchi::godName(info.god), I18n::getInstance().get(quality),
++             canchi::solarTermName(info.solarTerm));
++    renderer.drawText(SMALL_FONT_ID, gridLeft, y, line);
++    y += smallH + 3;
++  }
++
++  if (fits()) {
++    // Six of the twelve branches are auspicious, so the buffer only ever holds
++    // "Giờ tốt: " plus six five-character ranges and their separators.
++    char hours[80];
++    int n = snprintf(hours, sizeof(hours), "%s: ", tr(STR_AUSPICIOUS_HOURS));
++    const uint16_t mask = canchi::auspiciousHourMask(info.dayChi);
++    for (int i = 0; i < canchi::CHI_COUNT && n > 0 && n < static_cast<int>(sizeof(hours)); ++i) {
++      if ((mask >> i) & 1u) {
++        n += snprintf(hours + n, sizeof(hours) - n, "%s ", canchi::chiHourRange(i));
++      }
++    }
++    renderer.drawText(SMALL_FONT_ID, gridLeft, y, hours);
++    y += smallH + 3;
++  }
++
++  if (todayYear == 0 && fits()) {
 +    renderer.drawText(SMALL_FONT_ID, gridLeft, y, tr(STR_CLOCK_NOT_SET));
 +  }
 +
@@ -582,12 +1255,201 @@ index 0000000..b498da6
 +  void jumpToToday();
 +  void shiftDays(int delta);  // move the selection, carrying across months/years
 +};
+diff --git a/src/main.cpp b/src/main.cpp
+index 8a3a746..b9aecf5 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -30,6 +30,7 @@
+ #include "KOReaderCredentialStore.h"
+ #include "MappedInputManager.h"
+ #include "OpdsServerStore.h"
++#include "ReadingStats.h"
+ #include "RecentBooksStore.h"
+ #include "SdCardFontSystem.h"
+ #include "activities/Activity.h"
+@@ -425,6 +426,7 @@ void setup() {
+   }
+   SETTINGS.loadFromFile();
+   RECENT_BOOKS.loadFromFile();
++  READING_STATS.loadFromFile();
+   I18N.setLanguage(static_cast<Language>(SETTINGS.language));
+   KOREADER_STORE.loadFromFile();
+   OPDS_STORE.loadFromFile();
+diff --git a/src/util/CanChi.cpp b/src/util/CanChi.cpp
+new file mode 100644
+index 0000000..47c90a8
+--- /dev/null
++++ b/src/util/CanChi.cpp
+@@ -0,0 +1,99 @@
++#include "util/CanChi.h"
++
++namespace canchi {
++namespace {
++
++constexpr const char* CAN_NAMES[CAN_COUNT] = {"Giáp", "Ất",   "Bính", "Đinh", "Mậu",
++                                              "Kỷ",   "Canh", "Tân",  "Nhâm", "Quý"};
++
++constexpr const char* CHI_NAMES[CHI_COUNT] = {"Tý",  "Sửu", "Dần", "Mão", "Thìn", "Tỵ",
++                                              "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"};
++
++// The twelve tutelary spirits, in cycle order starting from Thanh Long.
++constexpr const char* GOD_NAMES[GOD_COUNT] = {
++    "Thanh Long", "Minh Đường", "Thiên Hình", "Chu Tước", "Kim Quỹ",  "Kim Đường",
++    "Bạch Hổ",    "Ngọc Đường", "Thiên Lao",  "Nguyên Vũ", "Tư Mệnh", "Câu Trần"};
++
++// Bit i set => spirit i is hoàng đạo. Thanh Long, Minh Đường, Kim Quỹ, Kim Đường,
++// Ngọc Đường, Tư Mệnh are the auspicious six; the other six are hắc đạo.
++constexpr uint16_t AUSPICIOUS_GODS = (1u << 0) | (1u << 1) | (1u << 4) | (1u << 5) | (1u << 7) | (1u << 10);
++
++constexpr const char* TERM_NAMES[TERM_COUNT] = {
++    "Lập Xuân",  "Vũ Thủy",   "Kinh Trập", "Xuân Phân", "Thanh Minh", "Cốc Vũ",
++    "Lập Hạ",    "Tiểu Mãn",  "Mang Chủng", "Hạ Chí",   "Tiểu Thử",   "Đại Thử",
++    "Lập Thu",   "Xử Thử",    "Bạch Lộ",   "Thu Phân",  "Hàn Lộ",     "Sương Giáng",
++    "Lập Đông",  "Tiểu Tuyết", "Đại Tuyết", "Đông Chí", "Tiểu Hàn",   "Đại Hàn"};
++
++constexpr const char* CHI_HOURS[CHI_COUNT] = {"23-01", "01-03", "03-05", "05-07", "07-09", "09-11",
++                                              "11-13", "13-15", "15-17", "17-19", "19-21", "21-23"};
++
++// Branch on which the Thanh Long cycle starts, indexed by lunar month 1..12. Months
++// pair up (1 and 7, 2 and 8, ...), so the table is a six-entry pattern repeated twice:
++// Thân, Tuất, Tý, Dần, Thìn, Ngọ.
++constexpr int GOD_START_CHI[12] = {8, 10, 0, 2, 4, 6, 8, 10, 0, 2, 4, 6};
++
++// Auspicious double-hours, indexed by the day's branch. Days pair up the same way the
++// months do, so six distinct masks cover all twelve branches:
++//   Tý/Ngọ    Tý Sửu Mão Ngọ Thân Dậu
++//   Sửu/Mùi   Dần Mão Tỵ Thân Tuất Hợi
++//   Dần/Thân  Tý Sửu Thìn Tỵ Mùi Tuất
++//   Mão/Dậu   Tý Dần Mão Ngọ Mùi Dậu
++//   Thìn/Tuất Dần Thìn Tỵ Thân Dậu Hợi
++//   Tỵ/Hợi    Sửu Thìn Ngọ Mùi Tuất Hợi
++constexpr uint16_t bit(int chi) { return static_cast<uint16_t>(1u << chi); }
++
++constexpr uint16_t HOUR_MASKS[6] = {
++    static_cast<uint16_t>(bit(0) | bit(1) | bit(3) | bit(6) | bit(8) | bit(9)),
++    static_cast<uint16_t>(bit(2) | bit(3) | bit(5) | bit(8) | bit(10) | bit(11)),
++    static_cast<uint16_t>(bit(0) | bit(1) | bit(4) | bit(5) | bit(7) | bit(10)),
++    static_cast<uint16_t>(bit(0) | bit(2) | bit(3) | bit(6) | bit(7) | bit(9)),
++    static_cast<uint16_t>(bit(2) | bit(4) | bit(5) | bit(8) | bit(9) | bit(11)),
++    static_cast<uint16_t>(bit(1) | bit(4) | bit(6) | bit(7) | bit(10) | bit(11))};
++
++// Positive modulo — the day pillar formulas can go negative for dates before the epoch.
++constexpr int mod(int v, int m) { return ((v % m) + m) % m; }
++
++}  // namespace
++
++const char* canName(int can) { return (can >= 0 && can < CAN_COUNT) ? CAN_NAMES[can] : "?"; }
++const char* chiName(int chi) { return (chi >= 0 && chi < CHI_COUNT) ? CHI_NAMES[chi] : "?"; }
++const char* godName(int god) { return (god >= 0 && god < GOD_COUNT) ? GOD_NAMES[god] : "?"; }
++const char* solarTermName(int term) { return (term >= 0 && term < TERM_COUNT) ? TERM_NAMES[term] : "?"; }
++const char* chiHourRange(int chi) { return (chi >= 0 && chi < CHI_COUNT) ? CHI_HOURS[chi] : "?"; }
++
++uint16_t auspiciousHourMask(int dayChi) {
++  if (dayChi < 0 || dayChi >= CHI_COUNT) {
++    return 0;
++  }
++  return HOUR_MASKS[dayChi % 6];
++}
++
++DayInfo dayInfo(int32_t jd, const lunar::LunarDate& ld) {
++  DayInfo info;
++
++  // Day pillar runs straight off the Julian day number; the +9/+1 offsets align the
++  // cycle so that JD 2451545 (2000-01-01) comes out Mậu Ngọ, which is what almanacs print.
++  info.dayCan = mod(static_cast<int>(jd) + 9, CAN_COUNT);
++  info.dayChi = mod(static_cast<int>(jd) + 1, CHI_COUNT);
++
++  // Year pillar is anchored to the LUNAR year, so a January date still belongs to the
++  // outgoing animal until Tết.
++  info.yearCan = mod(ld.year + 6, CAN_COUNT);
++  info.yearChi = mod(ld.year + 8, CHI_COUNT);
++
++  // Month pillar counts lunar months from the start of the sexagenary cycle. A leap
++  // month repeats its neighbour's pillar, which is why `ld.leap` is not consulted.
++  info.monthCan = mod(ld.year * 12 + ld.month + 3, CAN_COUNT);
++  info.monthChi = mod(ld.month + 1, CHI_COUNT);
++
++  // The spirit cycle starts on a branch fixed by the lunar month, then advances one
++  // step per branch as the days turn.
++  const int start = GOD_START_CHI[mod(ld.month - 1, 12)];
++  info.god = mod(info.dayChi - start, GOD_COUNT);
++  info.auspicious = (AUSPICIOUS_GODS >> info.god) & 1u;
++
++  info.solarTerm = lunar::solarTermIndex24(jd);
++  return info;
++}
++
++}  // namespace canchi
+diff --git a/src/util/CanChi.h b/src/util/CanChi.h
+new file mode 100644
+index 0000000..f31a4f3
+--- /dev/null
++++ b/src/util/CanChi.h
+@@ -0,0 +1,58 @@
++#pragma once
++
++#include <cstdint>
++
++#include "util/LunarCalendar.h"
++
++// Sexagenary cycle (Can Chi) and the day-quality reckoning Vietnamese almanacs print
++// next to each lunar date: which of the twelve tutelary spirits governs the day, whether
++// that makes it hoàng đạo (auspicious) or hắc đạo (inauspicious), and which double-hours
++// are auspicious within it.
++//
++// Resource note (AGENTS.md "Resource Justification"): every lookup here is integer
++// modulo arithmetic over `constexpr` tables that live in flash. No heap, no statics with
++// runtime initialisers, no floating point — unlike the lunar conversion itself, this
++// costs microseconds, so callers may run it per rendered cell if they want.
++//
++// The names are calendar data rather than UI chrome, so they are tables here instead of
++// `tr()` keys — the same treatment CalendarActivity already gives its month labels.
++// Sino-Vietnamese cycle names do not translate; a French or Polish UI still prints "Giáp Tý".
++namespace canchi {
++
++// Number of entries in each cycle.
++constexpr int CAN_COUNT = 10;   // Thiên Can
++constexpr int CHI_COUNT = 12;   // Địa Chi
++constexpr int GOD_COUNT = 12;   // Thập nhị trực thần
++constexpr int TERM_COUNT = 24;  // Tiết khí
++
++struct DayInfo {
++  int dayCan = 0;    // 0..9
++  int dayChi = 0;    // 0..11
++  int monthCan = 0;
++  int monthChi = 0;
++  int yearCan = 0;
++  int yearChi = 0;
++  int god = 0;              // 0..11, index into the twelve spirits
++  bool auspicious = false;  // true when `god` is one of the six hoàng đạo spirits
++  int solarTerm = 0;        // 0..23, 0 = Lập Xuân
++};
++
++// Name lookups. Out-of-range indices return "?" rather than reading past the table.
++const char* canName(int can);
++const char* chiName(int chi);
++const char* godName(int god);
++const char* solarTermName(int term);
++
++// Clock range covered by an Earth Branch double-hour, e.g. chi 0 (Tý) -> "23-01".
++const char* chiHourRange(int chi);
++
++// Full reckoning for the day `jd` falls on. `ld` must be the lunar date for the same
++// day: the month pillar and the spirit cycle are both anchored to the lunar month,
++// not the Gregorian one.
++DayInfo dayInfo(int32_t jd, const lunar::LunarDate& ld);
++
++// Bit i is set when double-hour `i` (Tý = 0) is auspicious on a day whose branch is
++// `dayChi`. Six of the twelve are auspicious on any given day.
++uint16_t auspiciousHourMask(int dayChi);
++
++}  // namespace canchi
 diff --git a/src/util/LunarCalendar.cpp b/src/util/LunarCalendar.cpp
 new file mode 100644
-index 0000000..e02fc7b
+index 0000000..cfac04d
 --- /dev/null
 +++ b/src/util/LunarCalendar.cpp
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,188 @@
 +#include "LunarCalendar.h"
 +
 +#include <cmath>
@@ -760,6 +1622,14 @@ index 0000000..e02fc7b
 +  return out;
 +}
 +
++int solarTermIndex24(int32_t jd, double timeZone) {
++  // 15-degree arcs: 0..23 counting from 0 degrees (Xuân Phân). Lập Xuân is at
++  // 315 degrees, i.e. raw index 21, so rotating by +3 puts Lập Xuân at 0 to match
++  // how the terms are conventionally listed.
++  const int raw = static_cast<int>(iFloor(sunLongitude(jd - 0.5 - timeZone / 24.0) / PI_ * 12.0));
++  return (raw + 3) % 24;
++}
++
 +int daysInMonth(int month, int year) {
 +  static constexpr int kDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 +  if (month < 1 || month > 12) return 30;
@@ -770,10 +1640,10 @@ index 0000000..e02fc7b
 +}  // namespace lunar
 diff --git a/src/util/LunarCalendar.h b/src/util/LunarCalendar.h
 new file mode 100644
-index 0000000..876181e
+index 0000000..62a3fbc
 --- /dev/null
 +++ b/src/util/LunarCalendar.h
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,48 @@
 +#pragma once
 +
 +#include <cstdint>
@@ -816,5 +1686,9 @@ index 0000000..876181e
 +
 +// Days in a Gregorian month (handles leap years).
 +int daysInMonth(int month, int year);
++
++// Index of the 24 solar terms (tiết khí) covering Julian day `jd`, 0 = Lập Xuân.
++// The terms divide the ecliptic into 15-degree arcs; Lập Xuân sits at 315 degrees.
++int solarTermIndex24(int32_t jd, double timeZone = VIETNAM_TIMEZONE);
 +
 +}  // namespace lunar

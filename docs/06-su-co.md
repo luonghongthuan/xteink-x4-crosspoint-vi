@@ -76,17 +76,37 @@ Last logs:
 [ERR] [GFX] No glyph for codepoint 7885   -> ọ
 ```
 
-**Nguyên nhân:** font đang chọn thiếu glyph tiếng Việt. Các mã 7853–7901 nằm trong
-khối Latin Extended Additional (U+1EA0–U+1EF9) — vùng chứa nguyên âm có dấu chồng
-hai tầng của tiếng Việt. Nhiều font phương Tây không có.
+Các mã 7853–7901 nằm trong khối Latin Extended Additional (U+1EA0–U+1EF9) — vùng
+chứa nguyên âm có dấu chồng hai tầng của tiếng Việt.
 
-**Cách sửa:** đổi sang font phủ đủ tiếng Việt, trong `Settings → Reader → Font`:
+**Không phải lỗi của firmware gốc.** Font nhúng sẵn trong CrossPoint được dựng với
+preset `builtin`, vốn khai báo thẳng các vùng tiếng Việt:
 
-- **Noto Serif Extended** — "Extended" nghĩa là phủ Unicode mở rộng
-- **Gentium Book Plus** — SIL làm, thiết kế riêng cho ngôn ngữ nhiều dấu
-- **Noto Sans Extended** — nếu thích font không chân
+```
+U+01A0-U+01A1   ơ Ơ
+U+01AF-U+01B0   ư Ư
+U+1EA0-U+1EF9   toàn bộ nguyên âm có dấu chồng
+```
 
-Tránh các font chỉ có bộ Latin cơ bản.
+Các font tải về (`.fonts/`) dựng với preset `latin-ext`, phủ U+1E00–U+1EFF, cũng đủ.
+Kiểm chứng bằng `lib/EpdFont/scripts/fontconvert_sdcard.py --list-presets`.
+
+**Nguyên nhân thật:** một **font tuỳ chỉnh của bên thứ ba** cài trên thẻ. Các bộ cài
+sẵn hay kèm font dựng thủ công (kiểu `vietnamese_newest_34_36x51.bin`) subset thiếu
+vùng này. Firmware gặp chữ không có glyph rồi panic.
+
+**Cách sửa:** vào `Settings → Reader → Font` chọn font mặc định hoặc một font tải từ
+chính máy. Xóa các font lạ trong `font/` và `.crosspoint/fonts/` trên thẻ.
+
+Nếu muốn dùng font riêng, dựng bằng công cụ chính thức của repo để chắc chắn đủ vùng:
+
+```bash
+cd lib/EpdFont/scripts
+pip install -r requirements.txt
+python3 fontconvert_sdcard.py FontCuaBan.ttf \
+        --intervals latin-ext,vietnamese,punctuation \
+        --sizes 12,14,16,18 --name FontCuaBan
+```
 
 ---
 
