@@ -32,7 +32,7 @@ nền e-ink, và script chia nhỏ truyện dài để máy không bị treo.
 | [04 — Hình nền e-ink](docs/04-hinh-nen.md) | Vì sao ảnh màu đưa thẳng vào thì bệt, và cách xử lý |
 | [05 — Từ điển](docs/05-tu-dien.md) | Cài từ điển StarDict tra ngay trong sách |
 | [06 — Khắc phục sự cố](docs/06-su-co.md) | `SD card error`, crash thiếu glyph, thẻ tự rớt |
-| [07 — Sách học tiếng Anh](docs/07-sach-hoc-tieng-anh.md) | 5 EPUB tự soạn, và cách tự dựng sách riêng |
+| [07 — Sách tự soạn](docs/07-sach-hoc-tieng-anh.md) | 11 EPUB: học tiếng Anh, khoa học, danh nhân, truyện thiếu nhi |
 | [08 — Font và cấu hình đọc](docs/08-font-va-cau-hinh.md) | Chọn font cho tiếng Việt, cấu hình tối ưu |
 
 ---

@@ -10,6 +10,25 @@ Repo kèm năm cuốn EPUB tự soạn, đặt trong [`books/`](../books/) dư�
 | **English Short Stories** | 5 truyện ngắn nguyên tác trình độ B1–B2, kèm chú giải và câu hỏi |
 | **IT Deep Dives** | 5 bài kỹ thuật chuyên sâu bằng tiếng Anh: độ trễ, HTTP, idempotency, caching, chất lượng mã |
 
+## Sách cho thiếu nhi (10–12 tuổi)
+
+| Sách | Nội dung |
+|---|---|
+| **Chuyện Của Những Đứa Trẻ Không Chịu Ngồi Yên** | 6 truyện ngắn nguyên tác, nhân vật chính là các bạn nhỏ tò mò và bướng bỉnh. Mỗi truyện kèm câu hỏi suy nghĩ. |
+| **Những Điều Kỳ Lạ Mà Có Thật** | Khoa học khám phá: con sam máu xanh, ếch đóng băng, kiến đếm bước chân, kim loại tan trong lòng bàn tay, cây biết đếm. Kèm 4 thí nghiệm làm được ở nhà. |
+| **Những Người Việt Đáng Nhớ** | 12 danh nhân và anh hùng: Hai Bà Trưng, Bà Triệu, Ngô Quyền, Trần Hưng Đạo, Nguyễn Trãi, Quang Trung, Chu Văn An, Lê Quý Đôn, Tôn Thất Tùng, Lương Định Của, Nguyễn Thị Định. |
+| **Người Bắt Đầu Từ Số Không** | Chuyện doanh nhân: Bạch Thái Bưởi, Mary Kay Ash, Andrew Carnegie, anh em Wright. Có một chương riêng về **những điều sách vở thường bỏ qua**. |
+| **Reading Time** | 8 bài luyện đọc hiểu tiếng Anh trình độ A2, kèm từ mới và câu hỏi. |
+| **Flyers — Từ vựng và Mẫu câu ôn thi** | Ôn Cambridge A2 Flyers: 60 từ theo 6 chủ đề, mẫu câu ngữ pháp, mẹo làm từng phần thi, kế hoạch ôn 30 ngày. |
+
+Ba điểm đáng chú ý trong nhóm sách thiếu nhi:
+
+**Không tô hồng.** Sách doanh nhân có hẳn một chương nói rằng ta chỉ nghe chuyện người thành công vì người thất bại không được viết sách, rằng may mắn có vai trò lớn hơn ta tưởng, và rằng Carnegie xây 2.500 thư viện nhưng công nhân trong nhà máy của ông thì làm việc rất khổ.
+
+**Dạy nghi ngờ.** Chuyện "ông Sanders bị từ chối 1009 lần" được kể kèm ghi chú rằng con số ấy không có bằng chứng chắc chắn. Thí nghiệm nến hút nước được kể kèm giải thích rằng **lời giải thích phổ biến của nó là sai**.
+
+**Nhân vật nữ chiếm phần lớn** trong tập truyện ngắn và xuất hiện đều trong sách danh nhân — vì sách soạn cho một bạn gái 10 tuổi.
+
 Mỗi chương gồm bảng từ vựng có phiên âm và nghĩa tiếng Việt, mẫu câu, và hội thoại mẫu.
 
 > Phiên âm dùng ký hiệu quốc tế, cần font tải về mới hiện đúng. Chọn Literata hoặc Gentium Book Plus — xem [08 — Font](08-font-va-cau-hinh.md#ba-tầng-font-đừng-nhầm-lẫn).
