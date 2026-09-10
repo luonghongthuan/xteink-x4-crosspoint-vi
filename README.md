@@ -150,6 +150,14 @@ File **không bao giờ được nạp cả vào RAM**. Máy giữ một con tr�
 
 Số từ mỗi lần chỉnh ở `Settings → Display → Số từ mỗi lần` (5 / 6 / 8 / 10).
 
+Chế độ **Ảnh + Từ vựng** thì luân phiên: lần ngủ này hiện ảnh, lần sau hiện từ,
+cứ thế đổi. Lượt được lật ở nơi điều phối chứ không phải trong hai hàm vẽ — nếu
+để bên trong, một nửa hỏng (chưa có danh sách từ, hoặc `/sleep` trống) sẽ ghim
+màn hình vào nửa còn lại vĩnh viễn.
+
+Dù ở chế độ nào, mỗi lần ngủ cũng chỉ **ghi thẻ đúng một lần** — con trỏ từ vựng
+và lượt luân phiên đi chung một lần ghi.
+
 ### Đồng bộ giờ tự động
 
 `HalClock` được mở rộng để đồng bộ NTP ngay khi có WiFi, đặt sẵn múi giờ **UTC+7**.
@@ -216,7 +224,7 @@ python3 tools/split_epub.py truyen.epub -d out/ --chapters 250
 
 ## Bản vá
 
-[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 2.026 dòng
+[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 2.070 dòng
 thêm mới qua 32 file, áp lên nhánh `develop` của
 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader).
 

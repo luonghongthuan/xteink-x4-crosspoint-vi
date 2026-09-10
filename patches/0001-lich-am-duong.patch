@@ -44,10 +44,10 @@ index b9c369a..46f516a 100644
    // One-shot: the next displayBuffer()/displayBufferAsync() call uses `mode`
    // instead of what its caller asked for, then the override clears itself.
 diff --git a/lib/I18n/translations/english.yaml b/lib/I18n/translations/english.yaml
-index 6d91063..bf12ef8 100644
+index 6d91063..2069a54 100644
 --- a/lib/I18n/translations/english.yaml
 +++ b/lib/I18n/translations/english.yaml
-@@ -464,3 +464,28 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
+@@ -464,3 +464,29 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
  STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF: "Do not power off!"
  STR_RECOVERY_MODE: "Recovery Mode"
  STR_RECOVERY_MODE_HINT: "Place firmware.bin on SD card root and select it"
@@ -76,11 +76,12 @@ index 6d91063..bf12ef8 100644
 +STR_WORDS_8: "8 words"
 +STR_WORDS_10: "10 words"
 +STR_VOCAB_NO_LIST: "No word list. Put a .txt file in /vocab"
++STR_SLEEP_VOCAB_CUSTOM: "Image + Vocabulary"
 diff --git a/lib/I18n/translations/vietnamese.yaml b/lib/I18n/translations/vietnamese.yaml
-index 2a306e3..38d2cd6 100644
+index 2a306e3..0f1f8df 100644
 --- a/lib/I18n/translations/vietnamese.yaml
 +++ b/lib/I18n/translations/vietnamese.yaml
-@@ -448,3 +448,28 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
+@@ -448,3 +448,29 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
  STR_RECOVERY_MODE_HINT: "Đặt firmware.bin ở thư mục gốc thẻ SD rồi chọn"
  STR_ADD_HIDDEN_NETWORK: "Thêm mạng ẩn..."
  STR_ENTER_WIFI_SSID: "Nhập tên mạng (SSID)"
@@ -109,6 +110,7 @@ index 2a306e3..38d2cd6 100644
 +STR_WORDS_8: "8 từ"
 +STR_WORDS_10: "10 từ"
 +STR_VOCAB_NO_LIST: "Chưa có danh sách. Đặt file .txt vào /vocab"
++STR_SLEEP_VOCAB_CUSTOM: "Ảnh + Từ vựng"
 diff --git a/lib/hal/HalClock.cpp b/lib/hal/HalClock.cpp
 index c793c9e..e34492f 100644
 --- a/lib/hal/HalClock.cpp
@@ -289,15 +291,16 @@ index 7fd2f6b..21e2066 100644
    // Get current hour (0-23) and minute (0-59).
    // Returns false if RTC is not available.
 diff --git a/src/CrossPointSettings.h b/src/CrossPointSettings.h
-index 43686d7..2de4e1d 100644
+index 43686d7..0b18a5d 100644
 --- a/src/CrossPointSettings.h
 +++ b/src/CrossPointSettings.h
-@@ -22,8 +22,17 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
+@@ -22,8 +22,18 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
      BLANK = 5,
      QUICK_RESUME = 6,
      TRANSPARENT_CUSTOM = 7,
 +    DASHBOARD = 8,
 +    VOCAB = 9,
++    VOCAB_CUSTOM = 10,
      SLEEP_SCREEN_MODE_COUNT
    };
 +  // Selectable entry counts for the word-list sleep screen.
@@ -310,7 +313,7 @@ index 43686d7..2de4e1d 100644
    enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
    enum SLEEP_SCREEN_COVER_FILTER {
      NO_FILTER = 0,
-@@ -280,6 +289,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
+@@ -280,6 +290,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
    uint8_t uiTheme = LYRA;
    // Sunlight fading compensation
    uint8_t fadingFix = 0;
@@ -323,34 +326,38 @@ index 43686d7..2de4e1d 100644
    uint8_t pwrBtnFootnoteBack = 1;
    // Use book's embedded CSS styles for EPUB rendering (1 = enabled, 0 = disabled)
 diff --git a/src/CrossPointState.cpp b/src/CrossPointState.cpp
-index 5435e99..fc2251d 100644
+index 5435e99..8d05ec9 100644
 --- a/src/CrossPointState.cpp
 +++ b/src/CrossPointState.cpp
-@@ -53,6 +53,7 @@ void CrossPointState::toJson(JsonDocument& doc) const {
+@@ -53,6 +53,8 @@ void CrossPointState::toJson(JsonDocument& doc) const {
    doc["readerActivityLoadCount"] = readerActivityLoadCount;
    doc["lastSleepFromReader"] = lastSleepFromReader;
    doc["showBootScreen"] = showBootScreen;
 +  doc["vocabCursor"] = vocabCursor;
++  doc["vocabAlternateNext"] = vocabAlternateNext;
  }
  
  bool CrossPointState::fromJson(JsonVariantConst doc) {
-@@ -90,5 +91,6 @@ bool CrossPointState::fromJson(JsonVariantConst doc) {
+@@ -90,5 +92,7 @@ bool CrossPointState::fromJson(JsonVariantConst doc) {
    readerActivityLoadCount = doc["readerActivityLoadCount"] | static_cast<uint8_t>(0);
    lastSleepFromReader = doc["lastSleepFromReader"] | false;
    showBootScreen = doc["showBootScreen"] | true;
 +  vocabCursor = doc["vocabCursor"] | 0u;
++  vocabAlternateNext = doc["vocabAlternateNext"] | false;
    return true;
  }
 diff --git a/src/CrossPointState.h b/src/CrossPointState.h
-index ebc57ba..0a97052 100644
+index ebc57ba..49dfcf1 100644
 --- a/src/CrossPointState.h
 +++ b/src/CrossPointState.h
-@@ -23,6 +23,8 @@ class CrossPointState : public PersistableStore<CrossPointState> {
+@@ -23,6 +23,10 @@ class CrossPointState : public PersistableStore<CrossPointState> {
    uint8_t readerActivityLoadCount = 0;
    bool lastSleepFromReader = false;
    bool showBootScreen = true;
 +  // Byte offset into the vocabulary list; where the next sleep screen resumes.
 +  uint32_t vocabCursor = 0;
++  // Which half of the alternating sleep screen comes next: true = word list.
++  bool vocabAlternateNext = false;
  
    static const char* getFilePath() { return "/.crosspoint/state.json"; }
    void toJson(JsonDocument& doc) const;
@@ -539,19 +546,20 @@ index 0000000..78a1df4
 +
 +#define READING_STATS ReadingStats::getInstance()
 diff --git a/src/SettingsList.h b/src/SettingsList.h
-index ccbfa69..70b514c 100644
+index ccbfa69..74b0997 100644
 --- a/src/SettingsList.h
 +++ b/src/SettingsList.h
-@@ -209,6 +209,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
+@@ -209,6 +209,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
      sleepScreenValues[CrossPointSettings::BLANK] = StrId::STR_NONE_OPT;
      sleepScreenValues[CrossPointSettings::QUICK_RESUME] = StrId::STR_QUICK_RESUME;
      sleepScreenValues[CrossPointSettings::TRANSPARENT_CUSTOM] = StrId::STR_TRANSPARENT;
 +    sleepScreenValues[CrossPointSettings::DASHBOARD] = StrId::STR_SLEEP_DASHBOARD;
 +    sleepScreenValues[CrossPointSettings::VOCAB] = StrId::STR_SLEEP_VOCAB;
++    sleepScreenValues[CrossPointSettings::VOCAB_CUSTOM] = StrId::STR_SLEEP_VOCAB_CUSTOM;
  
      std::vector<StrId> statusBarClockValues(CrossPointSettings::STATUS_BAR_CLOCK_MODE_COUNT);
      statusBarClockValues[CrossPointSettings::STATUS_BAR_CLOCK_HIDE] = StrId::STR_HIDE;
-@@ -238,6 +240,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
+@@ -238,6 +241,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                            {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED,
                             StrId::STR_THEME_ROUNDEDRAFF},
                            "uiTheme", StrId::STR_CAT_DISPLAY),
@@ -606,7 +614,7 @@ index acda644..ba852f7 100644
    void goToReader(std::string path, bool allowFastInitialRefresh = false);
    void goToSleep(bool fromTimeout = false);
 diff --git a/src/activities/boot_sleep/SleepActivity.cpp b/src/activities/boot_sleep/SleepActivity.cpp
-index f46145e..e35093c 100644
+index f46145e..861ed56 100644
 --- a/src/activities/boot_sleep/SleepActivity.cpp
 +++ b/src/activities/boot_sleep/SleepActivity.cpp
 @@ -5,12 +5,14 @@
@@ -639,7 +647,7 @@ index f46145e..e35093c 100644
  
  namespace {
  
-@@ -534,6 +539,10 @@ void SleepActivity::onEnter() {
+@@ -534,6 +539,25 @@ void SleepActivity::onEnter() {
    switch (SETTINGS.sleepScreen) {
      case (CrossPointSettings::SLEEP_SCREEN_MODE::BLANK):
        return renderBlankSleepScreen();
@@ -647,10 +655,25 @@ index f46145e..e35093c 100644
 +      return renderDashboardSleepScreen();
 +    case (CrossPointSettings::SLEEP_SCREEN_MODE::VOCAB):
 +      return renderVocabSleepScreen();
++    case (CrossPointSettings::SLEEP_SCREEN_MODE::VOCAB_CUSTOM): {
++      // Alternate on every sleep. The flag flips here rather than inside the two
++      // renderers so the turn still advances when one of them bails out (no word
++      // list present, no image in /sleep) — otherwise a missing half would pin
++      // the screen to the other one forever.
++      const bool showVocab = APP_STATE.vocabAlternateNext;
++      APP_STATE.vocabAlternateNext = !showVocab;
++      if (showVocab) {
++        // The word-list renderer persists state itself, carrying this flip out
++        // with the cursor in the same write.
++        return renderVocabSleepScreen();
++      }
++      APP_STATE.saveToFile();
++      return renderCustomSleepScreen();
++    }
      case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
        return renderCustomSleepScreen();
      case (CrossPointSettings::SLEEP_SCREEN_MODE::COVER):
-@@ -549,6 +558,143 @@ void SleepActivity::onEnter() {
+@@ -549,6 +573,147 @@ void SleepActivity::onEnter() {
    }
  }
  
@@ -751,6 +774,9 @@ index f46145e..e35093c 100644
 +
 +  if (!reader->open(APP_STATE.vocabCursor)) {
 +    renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
++    // Still persist: in the alternating mode the caller has already flipped the
++    // turn in memory and relies on this write to carry it.
++    APP_STATE.saveToFile();
 +    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 +    return;
 +  }
@@ -782,11 +808,12 @@ index f46145e..e35093c 100644
 +    renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
 +  } else {
 +    // Resume past the last entry shown, so the next sleep continues the list
-+    // instead of repeating it. Saved here rather than per entry: one SD write
-+    // per sleep, not one per word.
++    // instead of repeating it.
 +    APP_STATE.vocabCursor = reader->offset();
-+    APP_STATE.saveToFile();
 +  }
++  // One write per sleep, covering the cursor and — in the alternating mode —
++  // the turn the caller flipped before delegating here.
++  APP_STATE.saveToFile();
 +
 +  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 +}
