@@ -25,3 +25,6 @@ venv/
 # macOS
 .DS_Store
 ._*
+
+# EPUB dung tu books/*.book — chay tools/build_epub.py de sinh lai
+books/out/

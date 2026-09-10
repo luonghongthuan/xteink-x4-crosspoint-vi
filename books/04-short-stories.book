@@ -1,0 +1,282 @@
+@title: English Short Stories
+@author: Original stories with Vietnamese glossary
+@lang: en
+
+# How to use this book
+
+These are original short stories written at an **intermediate level** — roughly B1 to B2. Long enough to carry a story, short enough to finish in one sitting.
+
+Each story ends with a glossary of the harder words and a few questions. Read the story first without looking anything up. You will understand more than you expect. Only then check the glossary.
+
+> Đọc lần đầu đừng tra từ. Não bạn đoán nghĩa từ ngữ cảnh tốt hơn bạn tưởng, và chính việc đoán mới khiến từ ở lại. Tra từ điển ngay lập tức làm hỏng quá trình đó.
+
+Read each story twice: once for the plot, once for the language.
+
+# The Last Train
+
+Minh worked late again. It was not unusual — the office was quiet after seven, and quiet was when he did his best work. But tonight he had lost track of time completely, and when he finally looked up, it was twenty past eleven.
+
+He ran.
+
+The station was eight minutes away on foot. He made it in five, lungs burning, and arrived on the platform just as the display flickered: **23:28 — LAST TRAIN — DELAYED**.
+
+An old man sat on the bench, perfectly still, a small suitcase at his feet. He did not look up.
+
+Minh caught his breath and sat down two seats away. The platform was empty otherwise. Somewhere above them, a light buzzed and went out.
+
+"You made it," the old man said, without turning.
+
+"Barely." Minh laughed. "I thought I'd have to walk."
+
+"It's always delayed on Thursdays," the old man said. "Twelve minutes, usually. Sometimes fourteen."
+
+Minh looked at him properly for the first time. Grey coat, neat, old but well kept. The kind of shoes people polished.
+
+"You take this train often?"
+
+"Every Thursday for thirty-one years."
+
+"To where?"
+
+The old man was quiet for a moment. "To the third stop. There was a hospital there. My wife was in it for a long time."
+
+Minh did not know what to say, so he said nothing, which was probably right.
+
+"She died in March," the old man said. "Nineteen years ago."
+
+"I'm sorry."
+
+"Thank you." He shifted the suitcase slightly with his foot. "I still go. I know how that sounds."
+
+"It doesn't sound like anything," Minh said. "It sounds like Thursday."
+
+The old man smiled for the first time. It changed his whole face.
+
+The train arrived fourteen minutes late. They boarded together and sat opposite each other, and neither of them spoke again until the third stop, when the old man stood, nodded once, and stepped off into the dark.
+
+Minh watched him walk down the empty platform with his small suitcase, unhurried, as if he had all the time in the world.
+
+He did not stay late at the office again that week.
+
+## Glossary
+
+@vocab
+lose track of time | | quên mất thời gian | He lost track of time and missed the train.
+lungs burning | | phổi rát vì chạy | She arrived with her lungs burning.
+flicker | | nhấp nháy | The display flickered and went out.
+barely | | vừa vặn, suýt không | I barely made it.
+well kept | | được giữ gìn cẩn thận | The coat was old but well kept.
+polish | | đánh bóng | The kind of shoes people polished.
+shift | | dịch chuyển nhẹ | He shifted the suitcase with his foot.
+unhurried | | thong thả, không vội | He walked away, unhurried.
+@end
+
+## Questions
+
+- Why does the old man still take the train?
+- Minh says *"It sounds like Thursday."* What does he mean?
+- What changed for Minh at the end?
+
+# The Interview
+
+Hoa had prepared for three weeks. She knew the company's products, its founders, its last four funding rounds. She had rehearsed her answers in the mirror until they sounded natural rather than memorised.
+
+What she had not prepared for was the man opposite her falling asleep.
+
+It happened slowly. Ten minutes in, his eyes began to close. By minute twelve, his chin had dropped towards his chest. By minute fifteen, he was breathing deeply and evenly while Hoa explained, to nobody, her approach to database migrations.
+
+She stopped talking.
+
+The silence woke him. He blinked, sat up, and looked at her with an expression she could not read.
+
+"I'm so sorry," he said. "My daughter is four months old. She was awake from two until five."
+
+Hoa laughed before she could stop herself. "I have a nephew that age. My sister says she's forgotten what sleep feels like."
+
+"That's about right." He rubbed his face. "How much did I miss?"
+
+"About four minutes on indexing strategy."
+
+"Was it good?"
+
+"It was excellent."
+
+He grinned. "Then let's say I heard it." He closed the laptop. "Look, I've read your work. The technical part is fine — better than fine. Can I ask you something else instead?"
+
+"Please."
+
+"What's the last thing you built that nobody asked you to build?"
+
+Hoa thought about it. Nobody had ever asked her that in an interview.
+
+"A tool that tells me when a library I depend on hasn't been updated in two years," she said. "It emails me on Mondays. It's ugly. I've never shown it to anyone."
+
+"Why did you build it?"
+
+"Because I got burned once, and I got tired of finding out too late."
+
+He nodded slowly, and this time he was completely awake.
+
+She got the job.
+
+## Glossary
+
+@vocab
+rehearse | | tập dượt trước | She rehearsed her answers in the mirror.
+memorised | | học thuộc lòng | It sounded natural, not memorised.
+blink | | chớp mắt | He blinked and sat up.
+rub one's face | | xoa mặt cho tỉnh | He rubbed his face and apologised.
+grin | | cười toe | He grinned and closed the laptop.
+depend on | | phụ thuộc vào | A library I depend on.
+get burned | | bị vố đau, rút kinh nghiệm | I got burned once and learned.
+find out too late | | phát hiện quá muộn | I was tired of finding out too late.
+@end
+
+## Questions
+
+- Why did the interviewer stop asking technical questions?
+- What did Hoa's answer reveal about her that a technical question would not?
+- What is *"the last thing you built that nobody asked you to build"* meant to test?
+
+# Rain in Da Lat
+
+They had planned the trip for months and it rained for all four days.
+
+On the first day they were cheerful about it. They bought two cheap umbrellas from a woman near the market and walked anyway, laughing at how wet their shoes got. On the second day the cheerfulness thinned. By the third day Tuan was checking the weather app every twenty minutes, as if watching it might change something.
+
+"Stop," Lan said.
+
+"I'm just checking."
+
+"You've checked eleven times since breakfast. It's going to rain. That's the whole forecast. Rain, then more rain."
+
+Tuan put the phone face down on the table. The café was warm and smelled of coffee and wet wool. Outside, the rain came straight down, steady and grey, the kind that looks like it has been falling forever and intends to continue.
+
+"We chose the wrong week," he said.
+
+"We chose a week. The weather chose itself."
+
+He laughed despite himself.
+
+They stayed in that café for four hours. They did not do a single thing they had planned. Lan drew the woman behind the counter on a napkin, badly. Tuan read forty pages of a book he had carried in his bag for two years without opening. They talked about his father, which they had been avoiding for a while, and it was easier than either of them expected.
+
+At some point the owner brought them a second pot of tea without being asked, and would not let them pay for it.
+
+On the last morning the rain stopped. The valley appeared suddenly out of the mist, green and enormous, as if it had been waiting behind a curtain the whole time. They stood at the window and looked at it for a long time.
+
+"There it is," Tuan said.
+
+"There it is."
+
+They went home that afternoon. Years later, when people asked about Da Lat, they always talked about the café.
+
+## Glossary
+
+@vocab
+thin | | mỏng dần, nhạt đi | The cheerfulness thinned by day two.
+forecast | | dự báo thời tiết | That's the whole forecast.
+face down | | úp mặt xuống | He put the phone face down.
+steady | | đều đặn không dứt | The rain was steady and grey.
+despite himself | | dù không muốn | He laughed despite himself.
+avoid | | né tránh | A subject they had been avoiding.
+mist | | sương mù | The valley appeared out of the mist.
+enormous | | rộng lớn mênh mông | Green and enormous.
+@end
+
+## Questions
+
+- What does Lan mean by *"We chose a week. The weather chose itself."*?
+- Why do they remember the café rather than the valley?
+- Have you had a trip that went wrong and turned out well?
+
+# The Neighbour
+
+For six years Mrs Pham had lived above a man whose name she did not know.
+
+She knew other things about him. He came home at eleven fifteen most nights. He played the piano badly on Sunday mornings, always the same piece, never getting further than the middle. He had a dog that had died two winters ago — she had heard him crying through the floor, once, briefly, and had felt ashamed of hearing it.
+
+They passed each other on the stairs perhaps twice a month and said good morning.
+
+Then one January she slipped on the wet step outside the building and could not get up.
+
+It was six in the morning and the street was empty. Her hip hurt in a way that told her something was seriously wrong. She lay on the cold concrete and thought, with strange calm, that this was how it happened to people.
+
+The door opened behind her.
+
+He did not ask what was wrong. He knelt down, took off his coat, and put it under her head. Then he called an ambulance, and while they waited he sat on the wet step beside her and held her hand and talked about nothing at all — the weather, the state of the building, a shop that had closed.
+
+He came to the hospital every day for two weeks.
+
+On the third day she asked him his name.
+
+"Duc," he said. He looked slightly embarrassed. "I've known yours for years. It's on your post."
+
+When she came home, there was a chair on the landing outside her door, so she could rest halfway up. He never mentioned it and she never thanked him for it, because some things are better left as they are.
+
+He still plays the piano badly on Sunday mornings. She has decided she likes it.
+
+## Glossary
+
+@vocab
+ashamed | | xấu hổ | She felt ashamed of overhearing him.
+slip | | trượt chân | She slipped on the wet step.
+hip | | hông | Her hip hurt badly.
+with strange calm | | bình tĩnh một cách lạ lùng | She thought, with strange calm.
+kneel | | quỳ xuống | He knelt down beside her.
+embarrassed | | ngượng ngùng | He looked slightly embarrassed.
+landing | | chiếu nghỉ cầu thang | A chair on the landing.
+halfway | | nửa đường | She could rest halfway up.
+@end
+
+## Questions
+
+- Why does the narrator say some things are *"better left as they are"*?
+- What changed between the two neighbours, and what stayed the same?
+- Do you know your neighbours' names?
+
+# The Correction
+
+The email went out to four thousand people at nine in the morning.
+
+By nine oh four, Khanh knew. The number in the third paragraph was wrong — not slightly wrong, but wrong by a factor of ten. She had checked it twice. She had checked the wrong cell twice.
+
+Her first instinct was to work out whether anyone would notice.
+
+She sat with that instinct for about thirty seconds. Then she stood up and walked to her manager's desk.
+
+"The revenue figure in the newsletter is wrong," she said. "It says four hundred million. It's forty. I checked the wrong cell. Four thousand people have it."
+
+Her manager, Duc, looked at the screen, then back at her. "How long have you known?"
+
+"Four minutes."
+
+"Good." He stood up. "Let's write the correction now, while it's still this morning and not this afternoon."
+
+They sent it at nine twenty-one. Subject line: **Correction: revenue figure in today's newsletter**. It said what was wrong, what the right number was, and that the error was theirs. It did not explain, and it did not apologise three times. It was four sentences long.
+
+Eleven people replied. Nine of them said thank you. One asked a follow-up question. One said he had not noticed and now felt better about his own week.
+
+Nobody mentioned it again.
+
+Months later, when Khanh was being considered for a bigger role, Duc was asked what made him confident in her.
+
+"She told me about a mistake four minutes after she found it," he said. "I've worked with people who took four days."
+
+## Glossary
+
+@vocab
+by a factor of ten | | sai gấp mười lần | Wrong by a factor of ten.
+instinct | | phản xạ đầu tiên | Her first instinct was to hide it.
+work out | | tính toán, xác định | To work out whether anyone would notice.
+correction | | đính chính | Let's write the correction now.
+subject line | | dòng tiêu đề email | The subject line said Correction.
+follow-up | | câu hỏi tiếp theo | One asked a follow-up question.
+be considered for | | được cân nhắc cho | She was considered for a bigger role.
+confident in | | tin tưởng vào | What made him confident in her.
+@end
+
+## Questions
+
+- Why does Duc say *"Good"* when he hears how long she has known?
+- Why is the correction email only four sentences long?
+- What is the real lesson of this story — about mistakes, or about time?

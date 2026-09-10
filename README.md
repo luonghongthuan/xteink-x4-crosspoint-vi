@@ -32,6 +32,8 @@ nền e-ink, và script chia nhỏ truyện dài để máy không bị treo.
 | [04 — Hình nền e-ink](docs/04-hinh-nen.md) | Vì sao ảnh màu đưa thẳng vào thì bệt, và cách xử lý |
 | [05 — Từ điển](docs/05-tu-dien.md) | Cài từ điển StarDict tra ngay trong sách |
 | [06 — Khắc phục sự cố](docs/06-su-co.md) | `SD card error`, crash thiếu glyph, thẻ tự rớt |
+| [07 — Sách học tiếng Anh](docs/07-sach-hoc-tieng-anh.md) | 5 EPUB tự soạn, và cách tự dựng sách riêng |
+| [08 — Font và cấu hình đọc](docs/08-font-va-cau-hinh.md) | Chọn font cho tiếng Việt, cấu hình tối ưu |
 
 ---
 
@@ -209,6 +211,20 @@ python3 tools/photo2eink.py *.jpg -d sleep/ --clip 3.0    # tương phản mạn
 ### `tools/make_wallpapers.py`
 
 Sinh hình nền hình học dựng sẵn (đã tối ưu cho 4 mức xám, không cần ảnh nguồn).
+
+### `tools/build_epub.py`
+
+Dựng EPUB tối ưu cho e-ink từ file văn bản đơn giản. Calibre và pandoc sinh sách cho
+màn hình màu — nhúng font, CSS nhiều tầng, ảnh nền — những thứ làm X4 chậm hoặc hỏng
+hiển thị. Công cụ này sinh sách chỉ có `h1/h2/p/ul/table` và **một bảng CSS 775 byte
+không khai báo kiểu chữ**, để máy dùng font người đọc chọn.
+
+```bash
+python3 tools/build_epub.py books/01-business-english.book -d out/
+```
+
+Định dạng nguồn xem [`books/`](books/) — văn bản thuần, có khối `@vocab` cho bảng từ
+vựng và `@dialog` cho hội thoại.
 
 ### `tools/split_epub.py`
 

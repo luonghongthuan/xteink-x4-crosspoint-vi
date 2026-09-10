@@ -1,0 +1,189 @@
+@title: IT Deep Dives
+@author: In-depth technical reading in English
+@lang: en
+
+# How to use this book
+
+These essays are written in English at a level a working engineer can read comfortably, on topics worth understanding properly rather than superficially.
+
+The goal is two things at once: **learn the subject, and absorb the language of the subject**. Technical English has its own rhythm — hedged claims, precise comparatives, careful qualifications. You pick that up by reading real arguments, not word lists.
+
+Read slowly. These are not long, but they are dense.
+
+# Why your database is slow and your CPU is bored
+
+There is a moment familiar to every engineer who has profiled a slow service for the first time. You expect to find a hot loop, some function burning cycles. Instead you find the CPU sitting almost idle while requests pile up. Nothing is working hard, and yet everything is slow.
+
+The explanation is almost always the same: your program is not computing, it is **waiting**.
+
+## The numbers that explain everything
+
+Consider the rough cost of operations, normalised so that one CPU cycle is one second:
+
+- L1 cache reference: **1 second**
+- Main memory reference: **~100 seconds**
+- SSD random read: **~1 day**
+- Network round trip within a datacentre: **~5 days**
+- Disk seek on spinning rust: **~2 months**
+
+These ratios are the single most useful thing to keep in your head. They explain why adding an index can make a query a thousand times faster while rewriting the query logic in a faster language changes nothing at all.
+
+If your request spends 4 milliseconds computing and 300 milliseconds waiting on three sequential database round trips, then doubling your CPU speed improves the total by 2 milliseconds. Removing one round trip improves it by 100.
+
+## The N+1 problem
+
+The most common instance of this in practice is the **N+1 query**. You fetch a list of one hundred orders, then loop over them and fetch the customer for each. One query becomes one hundred and one.
+
+The code looks innocent. Each individual query is fast — perhaps two milliseconds. But two milliseconds times one hundred and one, executed sequentially, is two hundred milliseconds of pure waiting, and the CPU is idle for essentially all of it.
+
+The fix is not to make the queries faster. It is to make **fewer** of them: a single join, or a second query fetching all hundred customers at once by id.
+
+## Why this keeps happening
+
+ORMs hide the boundary between memory access and network access. `order.customer.name` looks exactly like `order.total` — one is a field read costing nanoseconds, the other is a network round trip costing milliseconds. The syntax gives you no hint that the cost differs by six orders of magnitude.
+
+This is the deeper lesson, and it generalises well beyond databases: **abstractions that hide cost will eventually cost you**. A good abstraction hides complexity. A dangerous one hides latency.
+
+> The practical habit: whenever you write a loop, ask what happens inside it that crosses a boundary — a network, a disk, a process. If anything does, the loop is a performance bug waiting for enough data.
+
+# What actually happens when you type a URL
+
+The question is a cliché in interviews, which is a shame, because the honest answer is genuinely interesting and most people know only fragments of it.
+
+## Resolution
+
+Your browser first needs an IP address. It checks its own cache, then the operating system's, then asks a resolver — usually your ISP's or a public one. If nobody has the answer cached, the resolver walks down the hierarchy: root servers, then the servers for `.com`, then the authoritative servers for the domain itself.
+
+This is why **TTL matters so much** during a migration. A record cached for 24 hours will keep sending traffic to the old address for up to 24 hours after you change it, no matter what your control panel says. Experienced teams lower the TTL to sixty seconds a day *before* a planned move, and raise it again afterwards.
+
+## Connection
+
+With an address, the browser opens a TCP connection: a three-way handshake, one round trip. Then, for HTTPS, a TLS handshake on top — historically two more round trips, reduced to one in TLS 1.3.
+
+On a connection with 100 milliseconds of latency, that is 200 to 300 milliseconds before a single byte of your page has been requested. This is why connection reuse, HTTP/2 multiplexing, and CDNs matter more than shaving kilobytes off your JavaScript bundle. **Latency is a property of distance and the speed of light; bandwidth is a property of money.** You can buy more bandwidth. You cannot buy a shorter path to Frankfurt.
+
+## Rendering
+
+The server responds with HTML. The browser begins parsing immediately, before the response has finished arriving, building the DOM as bytes land.
+
+When it meets a stylesheet, it blocks rendering — it cannot paint without knowing what things look like. When it meets a script without `async` or `defer`, it blocks parsing entirely, because that script might call `document.write` and change everything after it.
+
+This single behaviour explains most render-blocking advice you have ever read. The rules are not arbitrary; they follow from what the parser is permitted to assume.
+
+> If you understand only one thing here, make it this: the browser is a streaming parser doing its best with incomplete information. Nearly every front-end performance rule is an attempt to give it better information sooner.
+
+# Idempotency, and why retries are dangerous
+
+Every distributed system retries. Networks drop packets, services restart, timeouts fire. Retrying is not optional.
+
+But a retry is only safe if the operation is **idempotent** — if performing it twice has the same effect as performing it once.
+
+## The uncomfortable truth about timeouts
+
+Consider a payment request that times out after five seconds.
+
+What actually happened? Three possibilities: the request never arrived; it arrived and failed; or **it arrived, succeeded, and the response was lost on the way back**.
+
+From the client's perspective these are indistinguishable. A timeout tells you nothing about whether the work was done. This is not an engineering oversight; it is a theoretical limit. You cannot distinguish a slow response from a lost one without additional information.
+
+So the client retries, and if the server is not idempotent, the customer is charged twice.
+
+## The idempotency key
+
+The standard solution is for the client to generate a unique key per logical operation and send it with every attempt, including retries.
+
+The server stores the key with the result. On seeing a key it has processed before, it does not repeat the work — it returns the stored result. The customer is charged once, and the client still gets its answer.
+
+The subtlety most implementations miss: the key must be recorded **in the same transaction as the work**. If you charge the card and then write the key in a second step, a crash between the two leaves you exactly where you started.
+
+## What is naturally idempotent
+
+- `DELETE /orders/42` — deleting twice leaves the same state.
+- `PUT /users/7` with a complete body — setting the same value twice is harmless.
+- `POST /orders` — **not idempotent**. Two calls create two orders.
+- `balance = balance - 10` — not idempotent. Two calls subtract twenty.
+- `balance = 90` — idempotent, but introduces a lost-update problem instead.
+
+That last pair is worth sitting with. Making an operation idempotent often means moving the problem rather than removing it. Absolute assignment is safely repeatable but overwrites concurrent changes. Relative adjustment preserves concurrency but breaks under retry.
+
+> The design question is never *"how do I make this idempotent"* in isolation. It is *"which failure am I choosing to make impossible, and which am I choosing to live with"*.
+
+# Caching: the two hard problems
+
+There is an old joke that the two hard problems in computer science are cache invalidation, naming things, and off-by-one errors. The joke is funny; the first item is genuinely true.
+
+## Why invalidation is hard
+
+A cache is a copy. The moment you create a copy, you have created the possibility of disagreement, and the entire difficulty of caching is deciding **how long you are willing to be wrong**.
+
+That framing is more useful than it first appears, because it turns an unsolvable problem into a business question. How stale can a product price be? A stock level? A user's own profile after they edit it? These have different answers, and the answers are not technical.
+
+## Three strategies
+
+**Time-based expiry** is the simplest: keep it for sixty seconds, then fetch again. It never fully guarantees freshness, but it bounds staleness, and bounded wrongness is usually enough. Most caching should be this and nothing more.
+
+**Explicit invalidation** deletes the entry when the underlying data changes. Correct in principle, painful in practice: you must find every place that writes, and any path you miss produces a stale entry that never expires. The failure mode is silent and long-lived.
+
+**Versioned keys** sidestep invalidation entirely. Include a version or content hash in the key. When data changes, the key changes; the old entry is simply never requested again and ages out on its own. This is why compiled assets are named with a hash, and it is the most robust of the three when you can arrange it.
+
+## The stampede
+
+A subtle failure: a popular key expires, and one thousand concurrent requests all miss simultaneously. All thousand hit the database at once. The database, which was comfortable a moment ago, falls over.
+
+The cache did not fail. It worked exactly as designed. The problem is that expiry synchronised a thousand independent clients.
+
+Mitigations: add random jitter to expiry times so keys do not expire together; allow a single request to refresh while others serve slightly stale data; or refresh proactively before expiry rather than reactively after.
+
+> Notice the pattern shared with idempotency: the hard part was never the mechanism. It was the interaction between the mechanism and concurrency.
+
+# On writing code other people can change
+
+Most advice about code quality is aesthetic, and most of it is arguable. But there is one criterion that is neither: **how expensive is it to change this?**
+
+Code is read far more often than written, and it is *changed* more often than either. A design that is elegant but hostile to modification is a bad design, however satisfying it looks.
+
+## Coupling is the whole game
+
+Two pieces of code are coupled when changing one forces you to change the other. Coupling is not inherently bad — some things genuinely belong together — but **unnecessary** coupling is the primary cause of code that resists change.
+
+The insidious kind is not the obvious import. It is shared assumptions: two modules that both know the date format, both assume the list is sorted, both encode the same business rule slightly differently. Nothing in the type system connects them. Nothing fails when one changes. They simply drift apart until something breaks in production.
+
+## The test that reveals it
+
+Take any bug you fixed recently and count how many files you touched. Not how many lines — how many **files**, and how many of them you had to *understand* rather than merely edit.
+
+If a one-line behaviour change requires understanding five files, that is your real measure of quality. It is far more honest than test coverage or lint scores, both of which can be high in code that is miserable to modify.
+
+## Write the comment the code cannot
+
+The strongest argument for comments is not explanation. Good code explains what it does. The argument is **preservation of reasoning**.
+
+Compare:
+
+- *Retry three times.* — The code already said that.
+- *Three retries: the upstream times out roughly once in fifty calls, and a fourth retry never helped in a week of testing.*
+
+The second survives you leaving the company. It tells the next engineer what evidence produced the number, which is exactly what they need in order to change it responsibly.
+
+> The best comment answers the question a future reader will actually have, which is almost never *"what does this do"* and almost always *"why is it like this, and may I change it?"*
+
+# Glossary of terms used
+
+@vocab
+round trip | | một vòng gửi và nhận qua mạng | A round trip costs 100 milliseconds.
+latency | | độ trễ | Latency is a property of distance.
+bandwidth | | băng thông | You can buy more bandwidth.
+cache miss | | không tìm thấy trong bộ đệm | A thousand simultaneous cache misses.
+stale | | dữ liệu cũ, lỗi thời | How stale can this price be?
+jitter | | độ lệch ngẫu nhiên | Add jitter so keys do not expire together.
+idempotent | | gọi nhiều lần vẫn một kết quả | Make the endpoint idempotent.
+indistinguishable | | không phân biệt được | The two cases are indistinguishable.
+oversight | | sự sơ suất bỏ sót | This is not an engineering oversight.
+insidious | | âm thầm nguy hiểm | The insidious kind of coupling.
+drift apart | | dần lệch nhau | They drift apart until something breaks.
+sidestep | | né tránh khéo léo | Versioned keys sidestep invalidation.
+bound | | giới hạn lại | It bounds staleness.
+fall over | | sập, đổ | The database falls over.
+hostile to | | cản trở, thù địch với | A design hostile to modification.
+survive | | tồn tại lâu hơn | The comment survives you leaving.
+@end

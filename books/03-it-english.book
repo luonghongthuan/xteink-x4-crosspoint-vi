@@ -1,0 +1,302 @@
+@title: Tiếng Anh cho Dân IT
+@author: Từ vựng và mẫu câu theo tình huống
+@lang: vi
+
+# Cách dùng sách này
+
+Dân IT Việt Nam thường đọc tài liệu tiếng Anh tốt nhưng **nói và viết thì ngập ngừng**. Lý do đơn giản: đọc là kỹ năng thụ động, còn standup, code review, hay viết một bug report là kỹ năng chủ động.
+
+Sách này tập trung vào phần chủ động đó. Từ vựng chọn theo tình huống thật trong công việc phần mềm, kèm mẫu câu bạn dùng được ngay hôm sau.
+
+> Một điều đáng nhớ: trong kỹ thuật, **nói rõ mình không biết** là dấu hiệu của người giỏi, không phải người kém. *I'm not sure, let me check* là câu an toàn và chuyên nghiệp nhất trong nghề này.
+
+# Chương 1 — Họp standup
+
+## Từ vựng
+
+@vocab
+blocker | /ˈblɒkə/ | vật cản không đi tiếp được | My only blocker is the staging access.
+in progress | /ɪn ˈprəʊɡres/ | đang làm dở | The migration is still in progress.
+picked up | /pɪkt ʌp/ | nhận việc | I picked up the login bug yesterday.
+wrap up | /ræp ʌp/ | hoàn tất | I should wrap this up today.
+pair | /peə/ | làm cặp | Could we pair on this after standup?
+hand over | /hænd ˈəʊvə/ | bàn giao | I'll hand over to Mai before I leave.
+sync | /sɪŋk/ | trao đổi nhanh | Let's sync after this.
+capacity | /kəˈpæsəti/ | khả năng nhận thêm việc | I don't have capacity this sprint.
+spike | /spaɪk/ | việc khảo sát kỹ thuật | I'm doing a spike on the new library.
+carry over | /ˈkæri ˈəʊvə/ | dời sang sprint sau | This will carry over to next sprint.
+@end
+
+## Khung ba câu
+
+Standup chỉ cần ba câu. Học thuộc khung, thay nội dung:
+
+- **Yesterday I finished the payment validation and started on the retry logic.**
+- **Today I'll finish the retries and open a pull request.**
+- **No blockers.** hoặc **I'm blocked on staging access — I raised a ticket yesterday.**
+
+## Mẫu câu
+
+- **I'm still on the same task. It's taking longer than I estimated.**
+- **I underestimated this one. It'll need another day.**
+- **Could someone with database access help me for ten minutes?**
+- **That's not on my plate, but I can pick it up if it's urgent.**
+- **Let's take that offline — it's only relevant to two of us.**
+- **I don't have capacity for that this sprint.**
+
+> Câu **I underestimated this one** đáng học. Nói thẳng rằng mình ước lượng sai được tôn trọng hơn nhiều so với im lặng để việc trượt hạn.
+
+# Chương 2 — Code review
+
+Đây là nơi tiếng Anh dễ gây hiểu lầm nhất. Cùng một góp ý, cách viết khác nhau tạo ra phản ứng hoàn toàn khác.
+
+## Từ vựng
+
+@vocab
+nitpick | /ˈnɪtpɪk/ | góp ý vụn vặt | Nitpick: extra blank line here.
+edge case | /edʒ keɪs/ | trường hợp biên | What happens in the empty-list edge case?
+refactor | /ˌriːˈfæktə/ | tái cấu trúc mã | Could we refactor this into a helper?
+readable | /ˈriːdəbl/ | dễ đọc | This is correct but hard to read.
+maintainable | /meɪnˈteɪnəbl/ | dễ bảo trì | Simpler code is more maintainable.
+side effect | /saɪd ɪˈfekt/ | tác dụng phụ | This function has a hidden side effect.
+regression | /rɪˈɡreʃn/ | lỗi tái phát | Add a test to prevent a regression.
+coverage | /ˈkʌvərɪdʒ/ | độ phủ kiểm thử | Coverage dropped by four percent.
+naming | /ˈneɪmɪŋ/ | cách đặt tên | The naming here is a bit misleading.
+scope | /skəʊp/ | phạm vi thay đổi | This feels out of scope for this PR.
+@end
+
+## Cách góp ý không gây khó chịu
+
+Ba nguyên tắc:
+
+- Nói về **mã**, không nói về **người**. *This function does X* thay vì *You wrote X*.
+- Phân biệt bắt buộc và tuỳ chọn. Gắn nhãn rõ ràng.
+- Hỏi thay vì ra lệnh khi bạn chưa chắc.
+
+Hệ thống nhãn nhiều nhóm dùng:
+
+- **nit:** — vụn vặt, sửa hay không cũng được.
+- **question:** — tôi chưa hiểu, giải thích giúp.
+- **suggestion:** — đề xuất, không bắt buộc.
+- **blocking:** — phải sửa trước khi merge.
+
+## Mẫu câu
+
+- **nit: extra whitespace on line 42.**
+- **question: what happens if the list is empty here?**
+- **suggestion: this could be a bit clearer as a named constant.**
+- **blocking: this will throw when the token expires. Could we handle that?**
+- **I like this approach much better than the previous one.**
+- **Nice catch on the race condition.**
+- **Could you add a test for the timeout path?**
+- **I might be missing something — why do we need both flags?**
+- **This is out of scope for this PR. Worth a separate ticket?**
+- **Happy to approve once the test is added.**
+
+## Cách nhận review
+
+- **Good point, I'll fix it.**
+- **You're right, I missed that case.**
+- **I did it that way because of X, but I'm happy to change it.**
+- **Could you explain what you'd prefer here?**
+- **I'd like to keep this as is. Here's my reasoning.**
+
+> Câu cuối hoàn toàn chấp nhận được. Không phải mọi góp ý đều phải theo. Nhưng phải kèm lý do.
+
+# Chương 3 — Báo lỗi và gỡ lỗi
+
+## Từ vựng
+
+@vocab
+reproduce | /ˌriːprəˈdjuːs/ | tái hiện lỗi | I can't reproduce it locally.
+intermittent | /ˌɪntəˈmɪtənt/ | lúc có lúc không | The failure is intermittent.
+consistent | /kənˈsɪstənt/ | ổn định, luôn xảy ra | It fails consistently on Safari.
+stack trace | /stæk treɪs/ | vết ngăn xếp lỗi | The stack trace points to the parser.
+root cause | /ruːt kɔːz/ | nguyên nhân gốc | The root cause was a stale cache.
+workaround | /ˈwɜːkəraʊnd/ | cách né tạm | There's a workaround until we patch it.
+patch | /pætʃ/ | bản vá | The patch is ready for review.
+hotfix | /ˈhɒtfɪks/ | vá khẩn | We shipped a hotfix at midnight.
+rollback | /ˈrəʊlbæk/ | quay về bản cũ | We had to roll back the release.
+severity | /sɪˈverəti/ | mức nghiêm trọng | What's the severity of this issue?
+@end
+
+## Bug report tốt gồm bốn phần
+
+- **Steps to reproduce** — từng bước, đánh số.
+- **Expected** — điều lẽ ra phải xảy ra.
+- **Actual** — điều thực sự xảy ra.
+- **Environment** — trình duyệt, phiên bản, hệ điều hành.
+
+Ví dụ:
+
+> **Steps:** 1. Log in as a standard user. 2. Open Settings. 3. Change the language to Vietnamese. 4. Reload the page.
+> **Expected:** the interface stays in Vietnamese.
+> **Actual:** it reverts to English.
+> **Environment:** Chrome 121, macOS 14.3, build 4471.
+
+## Mẫu câu
+
+- **I can reproduce it consistently on Chrome, but not on Firefox.**
+- **It only happens when the cache is cold.**
+- **The stack trace points to the serialiser, but I think that's a symptom.**
+- **I've narrowed it down to the last three commits.**
+- **I've isolated it to a single function.**
+- **It's a race condition — it only shows under load.**
+- **I found the root cause. It was a connection that was never released.**
+- **This is a workaround, not a fix. I've opened a ticket for the real fix.**
+
+# Chương 4 — Kiến trúc và thiết kế
+
+## Từ vựng
+
+@vocab
+trade-off | /ˈtreɪd ɒf/ | đánh đổi | Every design has trade-offs.
+coupling | /ˈkʌplɪŋ/ | mức phụ thuộc lẫn nhau | Tight coupling makes changes risky.
+cohesion | /kəʊˈhiːʒn/ | tính gắn kết bên trong | High cohesion, low coupling.
+bottleneck | /ˈbɒtlnek/ | điểm nghẽn | The database is the bottleneck.
+throughput | /ˈθruːpʊt/ | lượng xử lý qua | Throughput doubled after caching.
+latency | /ˈleɪtənsi/ | độ trễ | Latency at the 99th percentile is too high.
+scalable | /ˈskeɪləbl/ | mở rộng được | This design isn't horizontally scalable.
+stateless | /ˈsteɪtləs/ | không giữ trạng thái | Keep the service stateless if you can.
+idempotent | /aɪˈdempətənt/ | gọi nhiều lần vẫn một kết quả | Make the retry endpoint idempotent.
+eventual consistency | /ɪˈventʃuəl kənˈsɪstənsi/ | nhất quán cuối cùng | We accept eventual consistency here.
+@end
+
+## Mẫu câu
+
+- **What problem are we actually solving?**
+- **What are the trade-offs of this approach?**
+- **What happens when this fails?**
+- **How does this behave under load?**
+- **Is there a simpler option we've ruled out?**
+- **I'd rather start simple and revisit if we hit limits.**
+- **That's premature optimisation. We don't have the traffic yet.**
+- **This adds a dependency. Is it worth it?**
+- **Let's write this down as a decision record so future us knows why.**
+
+> Câu hỏi **What happens when this fails?** là câu đáng giá nhất trong mọi buổi bàn kiến trúc. Đa số thiết kế tồi không phải vì sai lúc chạy đúng, mà vì không ai nghĩ tới lúc hỏng.
+
+# Chương 5 — Triển khai và vận hành
+
+## Từ vựng
+
+@vocab
+deploy | /dɪˈplɔɪ/ | triển khai | We deploy every Tuesday.
+staging | /ˈsteɪdʒɪŋ/ | môi trường thử | It works on staging but not production.
+rollout | /ˈrəʊlaʊt/ | tung ra dần | A gradual rollout to ten percent first.
+canary | /kəˈneəri/ | bản thử trên nhóm nhỏ | The canary showed a spike in errors.
+downtime | /ˈdaʊntaɪm/ | thời gian ngừng | We had eleven minutes of downtime.
+outage | /ˈaʊtɪdʒ/ | sự cố ngừng dịch vụ | The outage lasted two hours.
+incident | /ˈɪnsɪdənt/ | sự cố | I'm declaring an incident.
+on call | /ɒn kɔːl/ | trực hệ thống | I'm on call this weekend.
+alert | /əˈlɜːt/ | cảnh báo | The alert fired at three in the morning.
+postmortem | /ˌpəʊstˈmɔːtəm/ | phân tích sau sự cố | The postmortem is scheduled for Friday.
+@end
+
+## Mẫu câu khi có sự cố
+
+- **I'm declaring an incident. Error rate is at twelve percent.**
+- **We're rolling back to the previous version now.**
+- **The impact is limited to users in one region.**
+- **We've mitigated the immediate issue. Root cause is still unknown.**
+- **I'll post an update every fifteen minutes.**
+- **Service is restored. We'll do a postmortem tomorrow.**
+
+## Văn hoá postmortem không đổ lỗi
+
+Trong ngành phần mềm phương Tây, postmortem tốt là **blameless** — không nêu ai gây ra, chỉ nêu điều gì cho phép nó xảy ra.
+
+- Không: *Nam deployed without testing.*
+- Nên: *The deploy pipeline allowed a release without a passing test run.*
+
+Câu thứ hai dẫn tới một bản sửa thật. Câu thứ nhất chỉ dẫn tới một người sợ hãi.
+
+# Chương 6 — Phỏng vấn kỹ thuật
+
+## Từ vựng
+
+@vocab
+walk through | /wɔːk θruː/ | trình bày từng bước | Walk me through your approach.
+constraint | /kənˈstreɪnt/ | ràng buộc | What are the constraints on memory?
+assumption | /əˈsʌmpʃn/ | giả định | Let me state my assumptions.
+brute force | /bruːt fɔːs/ | cách thô sơ | Let's start with a brute force solution.
+optimise | /ˈɒptɪmaɪz/ | tối ưu | Now let's optimise the lookup.
+complexity | /kəmˈpleksəti/ | độ phức tạp | Time complexity is O of n log n.
+trade-off | /ˈtreɪd ɒf/ | đánh đổi | I'm trading memory for speed.
+clarify | /ˈklærɪfaɪ/ | làm rõ đề bài | Could I clarify the input format?
+corner case | /ˈkɔːnə keɪs/ | trường hợp hiếm | What about an empty input?
+dry run | /draɪ rʌn/ | chạy thử bằng tay | Let me dry run this with an example.
+@end
+
+## Nói to suy nghĩ của mình
+
+Người phỏng vấn chấm cách bạn nghĩ, không chỉ đáp án. Im lặng năm phút rồi đưa lời giải đúng vẫn bị đánh giá thấp hơn nói to quá trình.
+
+- **Before I start, could I clarify a couple of things?**
+- **Can the input be empty? Can it contain duplicates?**
+- **Let me state my assumptions: the array fits in memory, and values are integers.**
+- **I'll start with a brute force approach, then improve it.**
+- **This is O of n squared. I think we can do better with a hash map.**
+- **Let me dry run this with a small example.**
+- **I've made a mistake here — let me correct it.**
+- **I'm stuck. Could I have a hint?**
+
+> **I'm stuck. Could I have a hint?** không làm bạn mất điểm. Ngồi im mười phút thì có.
+
+## Câu hỏi ngược nên hỏi
+
+- **What does the on-call rotation look like?**
+- **How do you handle technical debt?**
+- **What's the deploy frequency?**
+- **How are decisions about architecture made?**
+- **What's the hardest problem the team is facing now?**
+
+# Chương 7 — Viết tài liệu
+
+## Từ vựng
+
+@vocab
+prerequisite | /ˌpriːˈrekwəzɪt/ | điều kiện cần trước | Prerequisites: Node 20 and Docker.
+overview | /ˈəʊvəvjuː/ | tổng quan | Start with a one-paragraph overview.
+caveat | /ˈkæviæt/ | lưu ý cảnh báo | One caveat: this is not thread safe.
+deprecated | /ˈdeprəkeɪtɪd/ | không dùng nữa | This endpoint is deprecated.
+breaking change | /ˈbreɪkɪŋ tʃeɪndʒ/ | thay đổi phá vỡ tương thích | This is a breaking change.
+backward compatible | /ˈbækwəd kəmˈpætəbl/ | tương thích ngược | The new API is backward compatible.
+snippet | /ˈsnɪpɪt/ | đoạn mã ngắn | Include a working snippet.
+boilerplate | /ˈbɔɪləpleɪt/ | mã khuôn mẫu lặp lại | Reduce the boilerplate if you can.
+edge case | /edʒ keɪs/ | trường hợp biên | Document the edge cases.
+rationale | /ˌræʃəˈnɑːl/ | lý do lựa chọn | Record the rationale, not just the decision.
+@end
+
+## Nguyên tắc
+
+Tài liệu tốt trả lời **tại sao**, không chỉ **cái gì**. Mã nguồn đã nói cái gì rồi.
+
+- Không: *This function sets the retry count to three.*
+- Nên: *Three retries, because the upstream service times out roughly once in fifty calls and a fourth retry never helped in testing.*
+
+## Mẫu câu
+
+- **This assumes you already have Docker installed.**
+- **Note: this only works on version 2.4 and above.**
+- **If you see error X, it usually means Y.**
+- **This is deprecated and will be removed in version 3.**
+- **See the example below for a working configuration.**
+- **We chose A over B because of the latency requirement.**
+
+# Chương 8 — Từ viết tắt hay gặp
+
+@vocab
+PR | /ˌpiː ˈɑː/ | pull request, yêu cầu gộp mã | Could you review my PR?
+MR | /ˌem ˈɑː/ | merge request, như PR trên GitLab | The MR is ready for review.
+LGTM | /ˌel dʒiː tiː ˈem/ | looks good to me, tôi duyệt | LGTM, ship it.
+WIP | /ˌdʌbljuː aɪ ˈpiː/ | work in progress, đang làm dở | Marking this WIP for now.
+PTAL | /ˌpiː tiː eɪ ˈel/ | please take another look | PTAL, I addressed your comments.
+IMO | /ˌaɪ em ˈəʊ/ | in my opinion, theo tôi | IMO this should be a separate service.
+TBD | /ˌtiː biː ˈdiː/ | to be decided, chưa quyết | The naming is TBD.
+ETA | /ˌiː tiː ˈeɪ/ | estimated time of arrival, dự kiến xong | What's the ETA on the fix?
+SLA | /ˌes el ˈeɪ/ | cam kết mức dịch vụ | Our SLA is 99.9 percent uptime.
+RCA | /ˌɑː siː ˈeɪ/ | root cause analysis | The RCA is attached.
+POC | /ˌpiː əʊ ˈsiː/ | proof of concept, bản chứng minh | It's just a POC, not production code.
+YAGNI | /ˈjæɡni/ | you aren't gonna need it | Don't build it yet — YAGNI.
+@end

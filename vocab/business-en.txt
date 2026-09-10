@@ -1,259 +1,260 @@
-# Business English — 240 từ
-# Định dạng: từ|phiên âm|nghĩa tiếng Việt
+# Business English — 240 từ, kèm câu ví dụ
+# Định dạng: từ|nghĩa tiếng Việt|câu ví dụ
 # Dòng bắt đầu bằng # là chú thích, máy bỏ qua.
+# Không dùng ký hiệu IPA: font giao diện của máy không có vùng U+0250-U+02FF.
 
 # --- Họp hành & đàm phán ---
-agenda|/əˈdʒendə/|chương trình nghị sự
-negotiate|/nɪˈɡəʊʃieɪt/|đàm phán, thương lượng
-leverage|/ˈliːvərɪdʒ/|đòn bẩy, lợi thế
-concession|/kənˈseʃn/|sự nhượng bộ
-stakeholder|/ˈsteɪkhəʊldə/|bên liên quan
-consensus|/kənˈsensəs/|sự đồng thuận
-adjourn|/əˈdʒɜːn/|hoãn, tạm nghỉ (cuộc họp)
-minutes|/ˈmɪnɪts/|biên bản cuộc họp
-quorum|/ˈkwɔːrəm/|số đại biểu tối thiểu
-deadlock|/ˈdedlɒk/|bế tắc
-compromise|/ˈkɒmprəmaɪz/|thoả hiệp
-mediate|/ˈmiːdieɪt/|làm trung gian hoà giải
-proposal|/prəˈpəʊzl/|đề xuất
-counteroffer|/ˈkaʊntərɒfə/|đề nghị đối lại
-bargaining power|/ˈbɑːɡɪnɪŋ ˈpaʊə/|sức mạnh mặc cả
-walk away|/wɔːk əˈweɪ/|rút khỏi đàm phán
-common ground|/ˈkɒmən ɡraʊnd/|điểm chung
-deliverable|/dɪˈlɪvərəbl/|sản phẩm bàn giao
-follow up|/ˈfɒləʊ ʌp/|theo dõi tiếp
-brainstorm|/ˈbreɪnstɔːm/|động não, nghĩ ý tưởng
-facilitate|/fəˈsɪlɪteɪt/|điều phối, tạo điều kiện
-clarify|/ˈklærɪfaɪ/|làm rõ
-recap|/ˈriːkæp/|tóm tắt lại
-table a motion|/ˈteɪbl ə ˈməʊʃn/|đưa ra kiến nghị
-veto|/ˈviːtəʊ/|quyền phủ quyết
-unanimous|/juˈnænɪməs/|nhất trí hoàn toàn
-abstain|/əbˈsteɪn/|bỏ phiếu trắng
-escalate|/ˈeskəleɪt/|đẩy lên cấp cao hơn
-align|/əˈlaɪn/|thống nhất quan điểm
-buy-in|/ˈbaɪ ɪn/|sự ủng hộ, đồng thuận
+agenda|chương trình nghị sự|Could you send me the agenda before the meeting?
+negotiate|đàm phán, thương lượng|We need to negotiate better payment terms.
+leverage|đòn bẩy, lợi thế|Our patent gives us leverage in this deal.
+concession|sự nhượng bộ|They made a small concession on the price.
+stakeholder|bên liên quan|Every stakeholder must approve the change.
+consensus|sự đồng thuận|The team reached a consensus after two hours.
+adjourn|hoãn, tạm nghỉ|Let's adjourn until Monday morning.
+minutes|biên bản cuộc họp|Who is taking the minutes today?
+quorum|số đại biểu tối thiểu|We cannot vote without a quorum.
+deadlock|bế tắc|The talks reached a deadlock over salaries.
+compromise|thoả hiệp|Both sides had to compromise to close the deal.
+mediate|làm trung gian hoà giải|An external lawyer will mediate the dispute.
+proposal|đề xuất|I have reviewed your proposal and I like it.
+counteroffer|đề nghị đối lại|We rejected their counteroffer as too low.
+bargaining power|sức mạnh mặc cả|Buying in bulk gives us bargaining power.
+walk away|rút khỏi đàm phán|Be ready to walk away if the terms get worse.
+common ground|điểm chung|We found common ground on the delivery date.
+deliverable|sản phẩm bàn giao|The first deliverable is due next Friday.
+follow up|theo dõi tiếp|I'll follow up with the client tomorrow.
+brainstorm|động não, nghĩ ý tưởng|Let's brainstorm before we pick a direction.
+facilitate|điều phối, tạo điều kiện|Mai will facilitate the workshop.
+clarify|làm rõ|Could you clarify what you mean by soon?
+recap|tóm tắt lại|Let me recap what we agreed on.
+veto|quyền phủ quyết|The board used its veto on that budget.
+unanimous|nhất trí hoàn toàn|The decision was unanimous.
+abstain|bỏ phiếu trắng|Two members chose to abstain.
+escalate|đẩy lên cấp cao hơn|If it is not fixed today, we escalate.
+align|thống nhất quan điểm|Let's align on scope before we start.
+buy-in|sự ủng hộ, đồng thuận|We need buy-in from the finance team.
+push back|phản đối, đẩy lùi|The client pushed back on the timeline.
 
 # --- Tài chính & kế toán ---
-revenue|/ˈrevənjuː/|doanh thu
-profit margin|/ˈprɒfɪt ˈmɑːdʒɪn/|biên lợi nhuận
-overhead|/ˈəʊvəhed/|chi phí quản lý chung
-asset|/ˈæset/|tài sản
-liability|/ˌlaɪəˈbɪləti/|nợ phải trả
-equity|/ˈekwəti/|vốn chủ sở hữu
-cash flow|/kæʃ fləʊ/|dòng tiền
-balance sheet|/ˈbæləns ʃiːt/|bảng cân đối kế toán
-depreciation|/dɪˌpriːʃiˈeɪʃn/|khấu hao
-amortisation|/əˌmɔːtaɪˈzeɪʃn/|phân bổ dần
-audit|/ˈɔːdɪt/|kiểm toán
-invoice|/ˈɪnvɔɪs/|hoá đơn
-receivable|/rɪˈsiːvəbl/|khoản phải thu
-payable|/ˈpeɪəbl/|khoản phải trả
-turnover|/ˈtɜːnəʊvə/|doanh thu; tỷ lệ nghỉ việc
-break-even|/breɪk ˈiːvn/|hoà vốn
-forecast|/ˈfɔːkɑːst/|dự báo
-budget|/ˈbʌdʒɪt/|ngân sách
-expenditure|/ɪkˈspendɪtʃə/|khoản chi
-allocate|/ˈæləkeɪt/|phân bổ
-solvency|/ˈsɒlvənsi/|khả năng thanh toán
-liquidity|/lɪˈkwɪdəti/|tính thanh khoản
-dividend|/ˈdɪvɪdend/|cổ tức
-valuation|/ˌvæljuˈeɪʃn/|định giá
-due diligence|/djuː ˈdɪlɪdʒəns/|thẩm định chi tiết
-write-off|/ˈraɪt ɒf/|xoá sổ nợ
-accrual|/əˈkruːəl/|dồn tích
-fiscal year|/ˈfɪskl jɪə/|năm tài chính
-capital expenditure|/ˈkæpɪtl ɪkˈspendɪtʃə/|chi phí đầu tư
-working capital|/ˈwɜːkɪŋ ˈkæpɪtl/|vốn lưu động
+revenue|doanh thu|Revenue grew fifteen percent this quarter.
+profit margin|biên lợi nhuận|Our profit margin is thinner than last year.
+overhead|chi phí quản lý chung|Remote work cut our overhead sharply.
+asset|tài sản|The building is our largest asset.
+liability|nợ phải trả|Long-term liabilities rose after the loan.
+equity|vốn chủ sở hữu|She holds ten percent of the equity.
+cash flow|dòng tiền|Late payments are hurting our cash flow.
+balance sheet|bảng cân đối kế toán|The balance sheet looks healthy.
+depreciation|khấu hao|We spread depreciation over five years.
+audit|kiểm toán|The annual audit starts next week.
+invoice|hoá đơn|Please issue the invoice by Friday.
+receivable|khoản phải thu|Accounts receivable are ninety days overdue.
+payable|khoản phải trả|Accounts payable must be cleared this month.
+turnover|doanh thu; tỷ lệ nghỉ việc|Staff turnover dropped after the pay rise.
+break-even|hoà vốn|We expect to break even in month eight.
+forecast|dự báo|The sales forecast was too optimistic.
+budget|ngân sách|This project is over budget already.
+expenditure|khoản chi|Capital expenditure is frozen this year.
+allocate|phân bổ|We allocated more budget to marketing.
+solvency|khả năng thanh toán|The bank questioned our solvency.
+liquidity|tính thanh khoản|We keep cash reserves for liquidity.
+dividend|cổ tức|The board declared a dividend of two percent.
+valuation|định giá|The startup's valuation doubled in a year.
+due diligence|thẩm định chi tiết|Due diligence took three months.
+write-off|xoá sổ nợ|We had to write off the bad debt.
+accrual|dồn tích|We use accrual accounting, not cash basis.
+fiscal year|năm tài chính|Our fiscal year ends in March.
+working capital|vốn lưu động|Working capital is tight this quarter.
+reconcile|đối chiếu sổ sách|Please reconcile the accounts monthly.
+variance|chênh lệch so với kế hoạch|Explain the variance against the budget.
 
 # --- Marketing & bán hàng ---
-market share|/ˈmɑːkɪt ʃeə/|thị phần
-brand equity|/brænd ˈekwəti/|giá trị thương hiệu
-target audience|/ˈtɑːɡɪt ˈɔːdiəns/|đối tượng mục tiêu
-segmentation|/ˌseɡmenˈteɪʃn/|phân khúc
-positioning|/pəˈzɪʃnɪŋ/|định vị
-value proposition|/ˈvæljuː ˌprɒpəˈzɪʃn/|giá trị cốt lõi mang lại
-lead|/liːd/|khách hàng tiềm năng
-conversion rate|/kənˈvɜːʃn reɪt/|tỷ lệ chuyển đổi
-churn|/tʃɜːn/|tỷ lệ khách rời bỏ
-retention|/rɪˈtenʃn/|giữ chân khách hàng
-outreach|/ˈaʊtriːtʃ/|tiếp cận khách hàng
-pipeline|/ˈpaɪplaɪn/|luồng cơ hội bán hàng
-pitch|/pɪtʃ/|bài chào hàng
-upsell|/ˌʌpˈsel/|bán thêm gói cao hơn
-cross-sell|/ˈkrɒs sel/|bán chéo sản phẩm
-testimonial|/ˌtestɪˈməʊniəl/|lời chứng thực
-endorsement|/ɪnˈdɔːsmənt/|sự chứng thực, ủng hộ
-campaign|/kæmˈpeɪn/|chiến dịch
-impression|/ɪmˈpreʃn/|lượt hiển thị
-engagement|/ɪnˈɡeɪdʒmənt/|mức độ tương tác
-funnel|/ˈfʌnl/|phễu bán hàng
-prospect|/ˈprɒspekt/|khách hàng triển vọng
-quota|/ˈkwəʊtə/|chỉ tiêu doanh số
-commission|/kəˈmɪʃn/|hoa hồng
-distributor|/dɪˈstrɪbjətə/|nhà phân phối
-wholesale|/ˈhəʊlseɪl/|bán buôn
-retail|/ˈriːteɪl/|bán lẻ
-premium|/ˈpriːmiəm/|cao cấp; phí bảo hiểm
-discount|/ˈdɪskaʊnt/|chiết khấu
-rebate|/ˈriːbeɪt/|hoàn tiền một phần
+market share|thị phần|We gained two points of market share.
+brand equity|giá trị thương hiệu|Years of quality built our brand equity.
+target audience|đối tượng mục tiêu|Our target audience is aged 25 to 40.
+segmentation|phân khúc|Better segmentation improved our results.
+positioning|định vị|We are repositioning as a premium brand.
+value proposition|giá trị cốt lõi mang lại|State your value proposition in one line.
+lead|khách hàng tiềm năng|The campaign generated four hundred leads.
+conversion rate|tỷ lệ chuyển đổi|Our conversion rate is under two percent.
+churn|tỷ lệ khách rời bỏ|Monthly churn climbed to five percent.
+retention|giữ chân khách hàng|Retention matters more than acquisition.
+pipeline|luồng cơ hội bán hàng|The sales pipeline looks strong.
+pitch|bài chào hàng|She delivered a great pitch to investors.
+upsell|bán thêm gói cao hơn|We upsell existing users to the pro plan.
+cross-sell|bán chéo sản phẩm|Cross-selling raised the average order value.
+testimonial|lời chứng thực|Add a customer testimonial to the page.
+endorsement|sự chứng thực, ủng hộ|The athlete's endorsement lifted sales.
+campaign|chiến dịch|The summer campaign starts in June.
+impression|lượt hiển thị|The ad got two million impressions.
+engagement|mức độ tương tác|Engagement dropped after the redesign.
+funnel|phễu bán hàng|Most users leave at the top of the funnel.
+prospect|khách hàng triển vọng|I met a promising prospect yesterday.
+quota|chỉ tiêu doanh số|She hit her quota three months early.
+commission|hoa hồng|Sales staff earn commission on each deal.
+distributor|nhà phân phối|We signed a distributor in Singapore.
+wholesale|bán buôn|Wholesale prices are thirty percent lower.
+retail|bán lẻ|The retail launch is set for October.
+discount|chiết khấu|Can you offer a volume discount?
+rebate|hoàn tiền một phần|Customers get a rebate after purchase.
+referral|giới thiệu khách|Most of our growth comes from referrals.
+outreach|tiếp cận khách hàng|Cold outreach rarely works these days.
 
 # --- Nhân sự & tuyển dụng ---
-recruitment|/rɪˈkruːtmənt/|tuyển dụng
-onboarding|/ˈɒnbɔːdɪŋ/|hội nhập nhân viên mới
-appraisal|/əˈpreɪzl/|đánh giá năng lực
-probation|/prəˈbeɪʃn/|thời gian thử việc
-severance|/ˈsevərəns/|trợ cấp thôi việc
-attrition|/əˈtrɪʃn/|hao hụt nhân sự
-headcount|/ˈhedkaʊnt/|số lượng nhân sự
-incentive|/ɪnˈsentɪv/|khuyến khích, thưởng
-perk|/pɜːk/|phúc lợi thêm
-mentor|/ˈmentɔː/|người dìu dắt
-delegate|/ˈdelɪɡeɪt/|uỷ quyền, giao việc
-promote|/prəˈməʊt/|thăng chức
-redundancy|/rɪˈdʌndənsi/|cắt giảm biên chế
-grievance|/ˈɡriːvəns/|khiếu nại
-compliance|/kəmˈplaɪəns/|tuân thủ
-workforce|/ˈwɜːkfɔːs/|lực lượng lao động
-succession|/səkˈseʃn/|kế nhiệm
-retain|/rɪˈteɪn/|giữ chân
-morale|/məˈrɑːl/|tinh thần làm việc
-burnout|/ˈbɜːnaʊt/|kiệt sức vì công việc
-turnaround|/ˈtɜːnəraʊnd/|xoay chuyển tình thế
-upskill|/ˈʌpskɪl/|nâng cao kỹ năng
-job description|/dʒɒb dɪˈskrɪpʃn/|mô tả công việc
-shortlist|/ˈʃɔːtlɪst/|danh sách rút gọn
-reference|/ˈrefrəns/|người tham chiếu
-notice period|/ˈnəʊtɪs ˈpɪəriəd/|thời gian báo trước
-appraise|/əˈpreɪz/|đánh giá
-workload|/ˈwɜːkləʊd/|khối lượng công việc
-headhunt|/ˈhedhʌnt/|săn đầu người
-retainer|/rɪˈteɪnə/|phí giữ chỗ dịch vụ
+recruitment|tuyển dụng|Recruitment is slower than we planned.
+onboarding|hội nhập nhân viên mới|Good onboarding cuts early turnover.
+appraisal|đánh giá năng lực|Your appraisal is scheduled for June.
+probation|thời gian thử việc|He passed his probation last week.
+severance|trợ cấp thôi việc|They received three months of severance.
+attrition|hao hụt nhân sự|Attrition rose after the reorganisation.
+headcount|số lượng nhân sự|We have a headcount freeze this quarter.
+incentive|khuyến khích, thưởng|The bonus is a strong incentive.
+perk|phúc lợi thêm|Free lunch is a nice perk.
+mentor|người dìu dắt|Every new hire gets a mentor.
+delegate|uỷ quyền, giao việc|You should delegate more of this work.
+promote|thăng chức|She was promoted to team lead.
+redundancy|cắt giảm biên chế|Twenty roles were made redundant.
+grievance|khiếu nại|He filed a formal grievance with HR.
+compliance|tuân thủ|All staff must complete compliance training.
+workforce|lực lượng lao động|Half our workforce is remote.
+succession|kế nhiệm|We need a succession plan for the CTO role.
+retain|giữ chân|It costs less to retain than to hire.
+morale|tinh thần làm việc|Morale improved after the town hall.
+burnout|kiệt sức vì công việc|Long hours led to widespread burnout.
+turnaround|xoay chuyển tình thế|The new manager led a real turnaround.
+upskill|nâng cao kỹ năng|We upskill staff every quarter.
+job description|mô tả công việc|The job description is out of date.
+shortlist|danh sách rút gọn|Five candidates made the shortlist.
+notice period|thời gian báo trước|My notice period is thirty days.
+workload|khối lượng công việc|Her workload is unsustainable.
+headhunt|săn đầu người|A recruiter headhunted him from a rival.
+appraise|đánh giá|Managers appraise their teams twice a year.
+onboard|đưa vào guồng|We onboard new clients in one week.
+resign|từ chức, xin nghỉ|He resigned with immediate effect.
 
 # --- Quản lý dự án ---
-milestone|/ˈmaɪlstəʊn/|cột mốc
-scope|/skəʊp/|phạm vi công việc
-scope creep|/skəʊp kriːp/|phình phạm vi
-bottleneck|/ˈbɒtlnek/|điểm nghẽn
-contingency|/kənˈtɪndʒənsi/|dự phòng
-dependency|/dɪˈpendənsi/|phụ thuộc
-critical path|/ˈkrɪtɪkl pɑːθ/|đường găng
-backlog|/ˈbæklɒɡ/|việc tồn đọng
-sprint|/sprɪnt/|chu kỳ làm việc ngắn
-retrospective|/ˌretrəˈspektɪv/|họp rút kinh nghiệm
-roadmap|/ˈrəʊdmæp/|lộ trình
-prioritise|/praɪˈɒrətaɪz/|ưu tiên hoá
-allocate resources|/ˈæləkeɪt rɪˈsɔːsɪz/|phân bổ nguồn lực
-lead time|/liːd taɪm/|thời gian chuẩn bị
-downtime|/ˈdaʊntaɪm/|thời gian ngừng hoạt động
-throughput|/ˈθruːpʊt/|năng suất thông qua
-benchmark|/ˈbentʃmɑːk/|chuẩn so sánh
-KPI|/ˌkeɪ piː ˈaɪ/|chỉ số hiệu suất chính
-SLA|/ˌes el ˈeɪ/|cam kết mức dịch vụ
-risk register|/rɪsk ˈredʒɪstə/|sổ theo dõi rủi ro
-mitigate|/ˈmɪtɪɡeɪt/|giảm thiểu
-kickoff|/ˈkɪkɒf/|khởi động dự án
-handover|/ˈhændəʊvə/|bàn giao
-sign-off|/ˈsaɪn ɒf/|phê duyệt cuối
-rollout|/ˈrəʊlaʊt/|triển khai
-pilot|/ˈpaɪlət/|thí điểm
-iterate|/ˈɪtəreɪt/|lặp và cải tiến
-streamline|/ˈstriːmlaɪn/|tinh gọn quy trình
-workaround|/ˈwɜːkəraʊnd/|giải pháp tạm
-postmortem|/ˌpəʊstˈmɔːtəm/|phân tích sau sự cố
+milestone|cột mốc|We hit the first milestone on time.
+scope|phạm vi công việc|That request is outside the agreed scope.
+scope creep|phình phạm vi|Scope creep killed the schedule.
+bottleneck|điểm nghẽn|Code review is the main bottleneck.
+contingency|dự phòng|Keep ten percent as contingency.
+dependency|phụ thuộc|This task has a dependency on design.
+critical path|đường găng|Testing is on the critical path.
+backlog|việc tồn đọng|The backlog has two hundred items.
+sprint|chu kỳ làm việc ngắn|We work in two-week sprints.
+retrospective|họp rút kinh nghiệm|The retrospective surfaced real problems.
+roadmap|lộ trình|The roadmap covers the next two quarters.
+prioritise|ưu tiên hoá|We must prioritise ruthlessly.
+lead time|thời gian chuẩn bị|Hardware has a six-week lead time.
+downtime|thời gian ngừng hoạt động|We had four hours of downtime.
+throughput|năng suất thông qua|Throughput doubled after the fix.
+benchmark|chuẩn so sánh|Use last year's numbers as a benchmark.
+mitigate|giảm thiểu|We added tests to mitigate the risk.
+kickoff|khởi động dự án|The kickoff meeting is on Monday.
+handover|bàn giao|Please document the handover clearly.
+sign-off|phê duyệt cuối|We are waiting for legal sign-off.
+rollout|triển khai|The rollout starts with ten percent of users.
+pilot|thí điểm|We ran a pilot in one branch first.
+iterate|lặp và cải tiến|Ship early, then iterate.
+streamline|tinh gọn quy trình|We streamlined the approval process.
+workaround|giải pháp tạm|There is a workaround until the patch lands.
+postmortem|phân tích sau sự cố|The postmortem was blameless and useful.
+blocker|vật cản|What is blocking you right now?
+scope out|khảo sát phạm vi|Let's scope out the work before quoting.
+estimate|ước lượng|Our estimate was off by a factor of two.
+timeline|tiến độ thời gian|The timeline is aggressive but possible.
 
 # --- Email & giao tiếp ---
-attach|/əˈtætʃ/|đính kèm
-forward|/ˈfɔːwəd/|chuyển tiếp
-acknowledge|/əkˈnɒlɪdʒ/|xác nhận đã nhận
-confirm|/kənˈfɜːm/|xác nhận
-enquire|/ɪnˈkwaɪə/|hỏi thông tin
-request|/rɪˈkwest/|yêu cầu
-remind|/rɪˈmaɪnd/|nhắc nhở
-apologise|/əˈpɒlədʒaɪz/|xin lỗi
-regret|/rɪˈɡret/|lấy làm tiếc
-appreciate|/əˈpriːʃieɪt/|cảm kích
-attached herewith|/əˈtætʃt hɪəˈwɪð/|đính kèm theo đây
-at your earliest convenience|/ət jɔː ˈɜːliɪst kənˈviːniəns/|khi bạn thu xếp được sớm nhất
-per our conversation|/pɜː ˈaʊə ˌkɒnvəˈseɪʃn/|theo như đã trao đổi
-looking forward to|/ˈlʊkɪŋ ˈfɔːwəd tuː/|mong chờ
-on behalf of|/ɒn bɪˈhɑːf ɒv/|thay mặt cho
-with regard to|/wɪð rɪˈɡɑːd tuː/|liên quan tới
-please advise|/pliːz ədˈvaɪz/|xin cho ý kiến
-kindly note|/ˈkaɪndli nəʊt/|xin lưu ý
-as discussed|/əz dɪˈskʌst/|như đã bàn
-pending|/ˈpendɪŋ/|đang chờ xử lý
-urgent|/ˈɜːdʒənt/|khẩn
-tentative|/ˈtentətɪv/|tạm thời, chưa chốt
-subsequent|/ˈsʌbsɪkwənt/|tiếp theo sau
-prior to|/ˈpraɪə tuː/|trước khi
-concise|/kənˈsaɪs/|ngắn gọn súc tích
-elaborate|/ɪˈlæbərət/|trình bày chi tiết
-outline|/ˈaʊtlaɪn/|phác thảo
-summarise|/ˈsʌməraɪz/|tóm tắt
-reiterate|/riˈɪtəreɪt/|nhắc lại
-notify|/ˈnəʊtɪfaɪ/|thông báo
+attach|đính kèm|I have attached the revised contract.
+forward|chuyển tiếp|Could you forward this to the finance team?
+acknowledge|xác nhận đã nhận|Please acknowledge receipt of this email.
+confirm|xác nhận|I am writing to confirm our meeting.
+enquire|hỏi thông tin|I am writing to enquire about your rates.
+remind|nhắc nhở|This is a gentle reminder about the invoice.
+apologise|xin lỗi|I apologise for the delay in replying.
+regret|lấy làm tiếc|We regret to inform you of the decision.
+appreciate|cảm kích|I would appreciate a reply by Thursday.
+at your earliest convenience|khi bạn thu xếp được sớm nhất|Please call me at your earliest convenience.
+per our conversation|theo như đã trao đổi|Per our conversation, I am sending the draft.
+looking forward to|mong chờ|Looking forward to hearing from you.
+on behalf of|thay mặt cho|I am writing on behalf of my manager.
+with regard to|liên quan tới|With regard to your query, here are the details.
+please advise|xin cho ý kiến|Please advise on how to proceed.
+kindly note|xin lưu ý|Kindly note the office closes at five.
+as discussed|như đã bàn|As discussed, I will send the report Monday.
+pending|đang chờ xử lý|Your application is still pending.
+urgent|khẩn|This matter is urgent and needs attention.
+tentative|tạm thời, chưa chốt|The date is tentative for now.
+subsequent|tiếp theo sau|Subsequent meetings will be monthly.
+prior to|trước khi|Please review the deck prior to the call.
+concise|ngắn gọn súc tích|Keep the summary concise.
+elaborate|trình bày chi tiết|Could you elaborate on that point?
+outline|phác thảo|I have outlined three options below.
+summarise|tóm tắt|Let me summarise the key risks.
+reiterate|nhắc lại|I want to reiterate our commitment.
+notify|thông báo|We will notify you once it ships.
+attach herewith|đính kèm theo đây|Attached herewith is the signed copy.
+touch base|liên lạc trao đổi|Let's touch base next week.
 
 # --- Chiến lược & vận hành ---
-scalable|/ˈskeɪləbl/|có thể mở rộng
-sustainable|/səˈsteɪnəbl/|bền vững
-outsource|/ˈaʊtsɔːs/|thuê ngoài
-merger|/ˈmɜːdʒə/|sáp nhập
-acquisition|/ˌækwɪˈzɪʃn/|mua lại
-subsidiary|/səbˈsɪdiəri/|công ty con
-joint venture|/dʒɔɪnt ˈventʃə/|liên doanh
-diversify|/daɪˈvɜːsɪfaɪ/|đa dạng hoá
-consolidate|/kənˈsɒlɪdeɪt/|hợp nhất, củng cố
-restructure|/ˌriːˈstrʌktʃə/|tái cơ cấu
-downsize|/ˈdaʊnsaɪz/|thu hẹp quy mô
-expand|/ɪkˈspænd/|mở rộng
-competitive edge|/kəmˈpetətɪv edʒ/|lợi thế cạnh tranh
-economies of scale|/ɪˈkɒnəmiz ɒv skeɪl/|lợi thế quy mô
-supply chain|/səˈplaɪ tʃeɪn/|chuỗi cung ứng
-procurement|/prəˈkjʊəmənt/|mua sắm, thu mua
-inventory|/ˈɪnvəntri/|hàng tồn kho
-logistics|/ləˈdʒɪstɪks/|hậu cần
-lean|/liːn/|tinh gọn
-overhaul|/ˈəʊvəhɔːl/|đại tu, cải tổ
-disrupt|/dɪsˈrʌpt/|làm thay đổi cục diện
-incumbent|/ɪnˈkʌmbənt/|doanh nghiệp đang thống lĩnh
-niche|/niːʃ/|thị trường ngách
-monopoly|/məˈnɒpəli/|độc quyền
-feasibility|/ˌfiːzəˈbɪləti/|tính khả thi
-viable|/ˈvaɪəbl/|khả thi
-synergy|/ˈsɪnədʒi/|cộng hưởng
-core competency|/kɔː ˈkɒmpɪtənsi/|năng lực cốt lõi
-value chain|/ˈvæljuː tʃeɪn/|chuỗi giá trị
-market penetration|/ˈmɑːkɪt ˌpenɪˈtreɪʃn/|thâm nhập thị trường
+scalable|có thể mở rộng|The design is not scalable beyond ten thousand users.
+sustainable|bền vững|We need a sustainable growth rate.
+outsource|thuê ngoài|We outsource payroll to a local firm.
+merger|sáp nhập|The merger closes in January.
+acquisition|mua lại|The acquisition cost two hundred million.
+subsidiary|công ty con|Our Singapore subsidiary handles Asia.
+joint venture|liên doanh|They formed a joint venture with a local partner.
+diversify|đa dạng hoá|We must diversify our revenue sources.
+consolidate|hợp nhất, củng cố|We consolidated three offices into one.
+restructure|tái cơ cấu|The company restructured its debt.
+downsize|thu hẹp quy mô|They downsized after the funding round failed.
+competitive edge|lợi thế cạnh tranh|Speed is our competitive edge.
+economies of scale|lợi thế quy mô|Volume brings economies of scale.
+supply chain|chuỗi cung ứng|The supply chain broke down last year.
+procurement|mua sắm, thu mua|Procurement approves all orders over ten million.
+inventory|hàng tồn kho|Inventory is tying up too much cash.
+logistics|hậu cần|Logistics costs rose with fuel prices.
+lean|tinh gọn|We run a lean operation.
+overhaul|đại tu, cải tổ|The process needs a complete overhaul.
+disrupt|làm thay đổi cục diện|Streaming disrupted the whole industry.
+incumbent|doanh nghiệp đang thống lĩnh|The incumbent still holds sixty percent.
+niche|thị trường ngách|We serve a profitable niche.
+monopoly|độc quyền|Regulators broke up the monopoly.
+feasibility|tính khả thi|We ran a feasibility study first.
+viable|khả thi|Is this commercially viable?
+synergy|cộng hưởng|The merger promised synergies that never came.
+core competency|năng lực cốt lõi|Stick to your core competency.
+value chain|chuỗi giá trị|We moved up the value chain.
+market penetration|thâm nhập thị trường|Market penetration is still under ten percent.
+benchmarking|đối chuẩn|Benchmarking showed we lag on speed.
 
 # --- Pháp lý & hợp đồng ---
-clause|/klɔːz/|điều khoản
-breach|/briːtʃ/|vi phạm
-indemnity|/ɪnˈdemnəti/|bồi thường
-warranty|/ˈwɒrənti/|bảo hành
-liability clause|/ˌlaɪəˈbɪləti klɔːz/|điều khoản trách nhiệm
-terminate|/ˈtɜːmɪneɪt/|chấm dứt hợp đồng
-amendment|/əˈmendmənt/|sửa đổi bổ sung
-addendum|/əˈdendəm/|phụ lục
-binding|/ˈbaɪndɪŋ/|có hiệu lực ràng buộc
-void|/vɔɪd/|vô hiệu
-waiver|/ˈweɪvə/|từ bỏ quyền
-arbitration|/ˌɑːbɪˈtreɪʃn/|trọng tài
-jurisdiction|/ˌdʒʊərɪsˈdɪkʃn/|thẩm quyền tài phán
-confidentiality|/ˌkɒnfɪdenʃiˈæləti/|bảo mật
-non-disclosure|/ˌnɒn dɪsˈkləʊʒə/|không tiết lộ
-intellectual property|/ˌɪntəˈlektʃuəl ˈprɒpəti/|sở hữu trí tuệ
-trademark|/ˈtreɪdmɑːk/|nhãn hiệu
-patent|/ˈpeɪtnt/|bằng sáng chế
-royalty|/ˈrɔɪəlti/|tiền bản quyền
-licence|/ˈlaɪsns/|giấy phép
-force majeure|/ˌfɔːs mæˈʒɜː/|bất khả kháng
-governing law|/ˈɡʌvənɪŋ lɔː/|luật điều chỉnh
-in good faith|/ɪn ɡʊd feɪθ/|với thiện chí
-null and void|/nʌl ənd vɔɪd/|hoàn toàn vô hiệu
-liable|/ˈlaɪəbl/|chịu trách nhiệm pháp lý
-enforce|/ɪnˈfɔːs/|thi hành, cưỡng chế
-comply with|/kəmˈplaɪ wɪð/|tuân thủ
-stipulate|/ˈstɪpjuleɪt/|quy định rõ
-notwithstanding|/ˌnɒtwɪθˈstændɪŋ/|bất kể, mặc dù
-whereas|/weərˈæz/|xét rằng (mở đầu hợp đồng)
+clause|điều khoản|Read clause seven carefully.
+breach|vi phạm|Late delivery is a breach of contract.
+indemnity|bồi thường|The indemnity clause protects the buyer.
+warranty|bảo hành|The warranty covers two years.
+terminate|chấm dứt hợp đồng|Either party may terminate with notice.
+amendment|sửa đổi bổ sung|We signed an amendment last month.
+addendum|phụ lục|The pricing is in the addendum.
+binding|có hiệu lực ràng buộc|This agreement is legally binding.
+void|vô hiệu|The contract is void without signatures.
+waiver|từ bỏ quyền|They signed a waiver of liability.
+arbitration|trọng tài|Disputes go to arbitration, not court.
+jurisdiction|thẩm quyền tài phán|The contract falls under Vietnamese jurisdiction.
+confidentiality|bảo mật|Confidentiality survives termination.
+non-disclosure|không tiết lộ|Please sign the non-disclosure agreement.
+intellectual property|sở hữu trí tuệ|All intellectual property stays with us.
+trademark|nhãn hiệu|The name is a registered trademark.
+patent|bằng sáng chế|They hold a patent on the process.
+royalty|tiền bản quyền|We pay a five percent royalty.
+licence|giấy phép|The software licence renews yearly.
+force majeure|bất khả kháng|The delay falls under force majeure.
+governing law|luật điều chỉnh|The governing law is that of Vietnam.
+in good faith|với thiện chí|Both parties negotiated in good faith.
+liable|chịu trách nhiệm pháp lý|The supplier is liable for defects.
+enforce|thi hành, cưỡng chế|We may enforce the penalty clause.
+comply with|tuân thủ|All vendors must comply with our policy.
+stipulate|quy định rõ|The contract stipulates monthly reports.
+notwithstanding|bất kể, mặc dù|Notwithstanding clause four, delivery stands.
+whereas|xét rằng|Whereas the parties wish to cooperate...
+liability cap|giới hạn trách nhiệm|The liability cap is one year of fees.
+term|thời hạn hợp đồng|The initial term is three years.

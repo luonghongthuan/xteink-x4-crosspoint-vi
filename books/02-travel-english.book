@@ -1,0 +1,320 @@
+@title: Tiếng Anh Du lịch
+@author: Thực hành theo tình huống
+@lang: vi
+
+# Cách dùng sách này
+
+Du lịch khác công việc ở một điểm: bạn hầu như luôn nói chuyện với **người lạ đang bận**. Nhân viên sân bay, lễ tân, tài xế — họ nghe hàng trăm người mỗi ngày. Câu ngắn và rõ hiệu quả hơn câu đúng ngữ pháp nhưng dài.
+
+Sách này ưu tiên những câu bạn dùng được ngay. Học thuộc mười câu trong một chương còn hơn hiểu lơ mơ cả trăm câu.
+
+> Một mẹo đáng giá: khi không nghe rõ, đừng gật đầu. Nói **Sorry?** rồi nghe lại. Gật bừa là cách nhanh nhất để lên nhầm chuyến hoặc trả nhầm tiền.
+
+# Chương 1 — Sân bay
+
+## Từ vựng
+
+@vocab
+boarding pass | /ˈbɔːdɪŋ pɑːs/ | thẻ lên máy bay | Please have your boarding pass ready.
+check in | /tʃek ɪn/ | làm thủ tục | Where do I check in for Bangkok?
+carry-on | /ˈkæri ɒn/ | hành lý xách tay | Is this small enough as a carry-on?
+checked baggage | /tʃekt ˈbæɡɪdʒ/ | hành lý ký gửi | One piece of checked baggage, please.
+aisle seat | /aɪl siːt/ | ghế cạnh lối đi | Could I have an aisle seat?
+window seat | /ˈwɪndəʊ siːt/ | ghế cạnh cửa sổ | I'd prefer a window seat.
+gate | /ɡeɪt/ | cửa ra máy bay | The gate has changed to B12.
+layover | /ˈleɪəʊvə/ | thời gian chờ nối chuyến | I have a four-hour layover in Doha.
+connecting flight | /kəˈnektɪŋ flaɪt/ | chuyến nối | Will I make my connecting flight?
+delayed | /dɪˈleɪd/ | bị hoãn | The flight is delayed by two hours.
+customs | /ˈkʌstəmz/ | hải quan | Do I go through customs here?
+declare | /dɪˈkleə/ | khai báo | I have nothing to declare.
+@end
+
+## Mẫu câu
+
+- **Where do I check in for flight VN310?**
+- **Could I have an aisle seat, please?**
+- **Is this within the carry-on size limit?**
+- **How much is the excess baggage fee?**
+- **Which gate is it boarding from?**
+- **I have a connecting flight. Will my bag go through?**
+- **My flight was cancelled. What are my options?**
+- **Is there a later flight today?**
+- **Where can I find the transfer desk?**
+- **My luggage didn't arrive. Where do I report it?**
+
+## Hội thoại mẫu
+
+@dialog
+Agent: Good morning. Where are you flying today?
+Thuan: Singapore, on flight SQ179.
+Agent: Passport and any bags to check?
+Thuan: Here's my passport. One bag to check, and this as carry-on.
+Agent: That's fine. Would you like a window or an aisle seat?
+Thuan: Aisle, please. And I have a connection in Singapore.
+Agent: To where?
+Thuan: Sydney, three hours later.
+Agent: I'll tag your bag through to Sydney. You won't need to collect it.
+Thuan: That's helpful, thanks. Which gate?
+Agent: B14, boarding at ten past nine. It's a fifteen-minute walk.
+@end
+
+## Khi có sự cố
+
+- **My flight was cancelled. Can you rebook me?**
+- **I've been waiting two hours. Is there any update?**
+- **Am I entitled to compensation?**
+- **Could you write that down for me?**
+- **Is there someone who speaks Vietnamese?**
+
+# Chương 2 — Khách sạn
+
+## Từ vựng
+
+@vocab
+reservation | /ˌrezəˈveɪʃn/ | đặt phòng | I have a reservation under Nguyen.
+check-in time | /ˈtʃek ɪn taɪm/ | giờ nhận phòng | What time is check-in?
+check out | /tʃek aʊt/ | trả phòng | I'd like to check out, please.
+vacancy | /ˈveɪkənsi/ | phòng trống | Do you have any vacancies tonight?
+en suite | /ˌɒn ˈswiːt/ | có phòng tắm riêng | Is the room en suite?
+amenities | /əˈmenətiz/ | tiện nghi | The amenities include a gym and pool.
+housekeeping | /ˈhaʊskiːpɪŋ/ | dọn phòng | Could housekeeping come after noon?
+deposit | /dɪˈpɒzɪt/ | tiền đặt cọc | Is a deposit required?
+late checkout | /leɪt ˈtʃekaʊt/ | trả phòng muộn | Is late checkout possible?
+complimentary | /ˌkɒmplɪˈmentri/ | miễn phí kèm theo | Breakfast is complimentary.
+@end
+
+## Mẫu câu
+
+- **I have a reservation under the name Nguyen.**
+- **Is breakfast included in the rate?**
+- **Could I get a room on a higher floor?**
+- **The room next door is very noisy. Could I move?**
+- **The air conditioning isn't working.**
+- **Could you store my luggage until my flight?**
+- **Is there a laundry service?**
+- **Could I have a late checkout? My flight is at eight.**
+- **Could you call me a taxi for six in the morning?**
+- **Could I have the bill, please? I think there's a mistake.**
+
+## Hội thoại mẫu
+
+@dialog
+Thuan: Good evening. I have a reservation under Nguyen.
+Clerk: Let me check. Three nights, a double room?
+Thuan: That's right. Is breakfast included?
+Clerk: It is, from six thirty to ten in the restaurant on the ground floor.
+Thuan: Great. Is there a quieter room available? I'm a light sleeper.
+Clerk: I can move you to the fifth floor, away from the road.
+Thuan: That would be perfect. One more thing — what time is checkout?
+Clerk: Noon. Late checkout until two is possible for a small fee.
+Thuan: I may need that. I'll let you know tomorrow.
+@end
+
+# Chương 3 — Nhà hàng và quán ăn
+
+## Từ vựng
+
+@vocab
+book a table | /bʊk ə ˈteɪbl/ | đặt bàn | I'd like to book a table for four.
+starter | /ˈstɑːtə/ | món khai vị | What do you recommend as a starter?
+main course | /meɪn kɔːs/ | món chính | I'll have the fish as a main course.
+side dish | /saɪd dɪʃ/ | món ăn kèm | Could I get a side of rice?
+rare | /reə/ | tái | Medium rare, please.
+well done | /wel dʌn/ | chín kỹ | I'd like it well done.
+allergic | /əˈlɜːdʒɪk/ | dị ứng | I'm allergic to peanuts.
+vegetarian | /ˌvedʒɪˈteəriən/ | ăn chay | Do you have vegetarian options?
+the bill | /ðə bɪl/ | hoá đơn | Could we have the bill, please?
+split the bill | /splɪt ðə bɪl/ | chia tiền | Shall we split the bill?
+tip | /tɪp/ | tiền boa | Is service included, or should I tip?
+takeaway | /ˈteɪkəweɪ/ | mang về | Can I get this as a takeaway?
+@end
+
+## Mẫu câu
+
+- **A table for two, please.**
+- **Do you have a table by the window?**
+- **What would you recommend?**
+- **What's in this dish?**
+- **I'm allergic to shellfish. Does this contain any?**
+- **Could I have that without chilli?**
+- **Is this spicy?**
+- **Could we have some more water, please?**
+- **This isn't what I ordered.**
+- **Could we have the bill, please?**
+- **Is service included?**
+- **Do you take card?**
+
+> Câu **I'm allergic to...** đáng học thuộc chính xác. Nói *I don't eat...* thì bếp có thể coi là sở thích, nhưng *allergic* thì họ xử lý nghiêm túc.
+
+## Hội thoại mẫu
+
+@dialog
+Waiter: Good evening. Do you have a reservation?
+Thuan: No, we don't. A table for two, if possible?
+Waiter: We have one by the window. Will that do?
+Thuan: That's perfect, thank you. Could we see the menu?
+Waiter: Of course. Today's special is the grilled sea bass.
+Thuan: That sounds good. Does it come with anything?
+Waiter: Roast vegetables and potatoes.
+Thuan: I'll take that. One thing — I'm allergic to shellfish. Is the sauce safe?
+Waiter: Let me check with the kitchen to be sure.
+Thuan: I'd appreciate it, thanks.
+@end
+
+# Chương 4 — Đi lại và hỏi đường
+
+## Từ vựng
+
+@vocab
+one way | /wʌn weɪ/ | một chiều | One way to the airport, please.
+return ticket | /rɪˈtɜːn ˈtɪkɪt/ | vé khứ hồi | A return ticket to Oxford, please.
+platform | /ˈplætfɔːm/ | sân ga | Which platform for the London train?
+fare | /feə/ | giá vé | What's the fare to the city centre?
+change | /tʃeɪndʒ/ | đổi tuyến; tiền thối | Do I need to change trains?
+stop | /stɒp/ | điểm dừng | How many stops is it?
+get off | /ɡet ɒf/ | xuống xe | Where should I get off?
+straight ahead | /streɪt əˈhed/ | đi thẳng | Go straight ahead for two blocks.
+turn left | /tɜːn left/ | rẽ trái | Turn left at the traffic lights.
+around the corner | /əˈraʊnd ðə ˈkɔːnə/ | ngay góc phố | It's just around the corner.
+opposite | /ˈɒpəzɪt/ | đối diện | It's opposite the bank.
+on foot | /ɒn fʊt/ | đi bộ | Is it walkable on foot?
+@end
+
+## Mẫu câu
+
+- **How do I get to the old town from here?**
+- **Is it within walking distance?**
+- **Which platform does the train to Oxford leave from?**
+- **Does this bus go to the museum?**
+- **Could you tell me when to get off?**
+- **How much is the fare?**
+- **Could you use the meter, please?**
+- **I'd like to go to this address.** (đưa điện thoại ra cho tài xế xem)
+- **Could you stop here, please?**
+- **Keep the change.**
+- **I think we're going the wrong way.**
+
+## Hội thoại mẫu
+
+@dialog
+Thuan: Excuse me, how do I get to the National Museum?
+Local: You can walk. It's about fifteen minutes.
+Thuan: Could you show me on the map?
+Local: Sure. Go straight ahead to the big square, then turn left.
+Thuan: Straight, then left at the square.
+Local: That's it. The museum is opposite a large church. You can't miss it.
+Thuan: And if I take the bus instead?
+Local: Number 12, from that stop. Three stops, then it's a short walk.
+Thuan: Thank you very much. You've been very helpful.
+@end
+
+# Chương 5 — Mua sắm
+
+## Từ vựng
+
+@vocab
+browse | /braʊz/ | xem lướt qua | I'm just browsing, thanks.
+try on | /traɪ ɒn/ | mặc thử | Could I try this on?
+fitting room | /ˈfɪtɪŋ ruːm/ | phòng thử đồ | Where's the fitting room?
+in stock | /ɪn stɒk/ | còn hàng | Do you have this in stock?
+sold out | /səʊld aʊt/ | hết hàng | The medium is sold out.
+receipt | /rɪˈsiːt/ | hoá đơn | Keep the receipt for returns.
+refund | /ˈriːfʌnd/ | hoàn tiền | Can I get a refund?
+exchange | /ɪksˈtʃeɪndʒ/ | đổi hàng | Could I exchange this for a larger size?
+bargain | /ˈbɑːɡɪn/ | mặc cả; món hời | It was a real bargain.
+haggle | /ˈhæɡl/ | mặc cả | You're expected to haggle at this market.
+@end
+
+## Mẫu câu
+
+- **I'm just looking, thanks.**
+- **Do you have this in a medium?**
+- **Do you have this in another colour?**
+- **Could I try this on?**
+- **How much is this?**
+- **That's a bit more than I wanted to spend.**
+- **Is there a discount if I take two?**
+- **Can I pay by card?**
+- **Could I have a receipt, please?**
+- **Can I return this if it doesn't fit?**
+
+## Mặc cả
+
+Ở chợ châu Á, Trung Đông, Bắc Phi thì mặc cả là bình thường. Ở cửa hàng có niêm yết giá thì không.
+
+- **What's your best price?**
+- **Would you take five hundred?**
+- **That's too much for me. Thanks anyway.** — rồi bước đi. Đây là câu hiệu quả nhất.
+
+# Chương 6 — Tình huống khẩn cấp
+
+Chương này ngắn nhưng quan trọng nhất. Học thuộc, đừng chỉ đọc.
+
+## Từ vựng
+
+@vocab
+emergency | /ɪˈmɜːdʒənsi/ | tình huống khẩn | This is an emergency.
+ambulance | /ˈæmbjələns/ | xe cứu thương | Please call an ambulance.
+pharmacy | /ˈfɑːməsi/ | hiệu thuốc | Where's the nearest pharmacy?
+prescription | /prɪˈskrɪpʃn/ | đơn thuốc | Do I need a prescription for this?
+symptom | /ˈsɪmptəm/ | triệu chứng | My symptoms started yesterday.
+painkiller | /ˈpeɪnkɪlə/ | thuốc giảm đau | Could I get some painkillers?
+insurance | /ɪnˈʃʊərəns/ | bảo hiểm | I have travel insurance.
+stolen | /ˈstəʊlən/ | bị đánh cắp | My wallet was stolen.
+embassy | /ˈembəsi/ | đại sứ quán | I need to contact my embassy.
+report | /rɪˈpɔːt/ | trình báo | I'd like to report a theft.
+@end
+
+## Mẫu câu
+
+- **I need help.**
+- **Please call an ambulance.**
+- **Is there a doctor nearby?**
+- **I'm allergic to penicillin.**
+- **I have a fever and a bad headache.**
+- **My passport was stolen. Where's the police station?**
+- **I'd like to report a theft. I need a written report for my insurance.**
+- **I need to contact the Vietnamese embassy.**
+- **I've lost my phone. Is there a lost property office?**
+- **Could you speak more slowly, please?**
+
+> Trước khi đi, lưu sẵn vào điện thoại: số điện thoại đại sứ quán Việt Nam tại nước đó, số bảo hiểm du lịch, và ảnh chụp hộ chiếu. Ba thứ này cứu bạn khi mất hết đồ.
+
+# Chương 7 — Trò chuyện xã giao
+
+Người phương Tây trò chuyện với người lạ nhiều hơn ta tưởng — trên tàu, trong hàng chờ, ở quán bar. Vài câu đơn giản làm chuyến đi khác hẳn.
+
+## Chủ đề an toàn
+
+- Thời tiết, chuyến đi, đồ ăn, thể thao, phim ảnh.
+- **Where are you from?** / **Is this your first time here?**
+- **How long are you staying?**
+- **What have you seen so far?**
+- **Any recommendations for a good local place to eat?**
+
+## Chủ đề nên tránh
+
+Tiền lương, tuổi tác, cân nặng, tình trạng hôn nhân, chính trị, tôn giáo. Ở Việt Nam hỏi tuổi là bình thường; ở phương Tây thì không.
+
+## Mẫu câu
+
+- **I'm from Vietnam — Hanoi, in the north.**
+- **This is my first time in Europe.**
+- **The food here is amazing. What's this dish called?**
+- **Do you know anywhere good for coffee?**
+- **It was nice talking to you. Enjoy your trip.**
+
+## Hội thoại mẫu
+
+@dialog
+Stranger: Beautiful day, isn't it?
+Thuan: It really is. Much warmer than I expected.
+Stranger: You're not from here?
+Thuan: No, I'm from Vietnam. First time in Portugal.
+Stranger: How are you finding it?
+Thuan: Wonderful. Though I wasn't ready for dinner at ten at night.
+Stranger: Ha, yes. We eat late here. Have you tried the seafood?
+Thuan: Not yet. Anywhere you'd recommend?
+Stranger: There's a small place behind the market. No sign, blue door. Best in town.
+Thuan: A place with no sign — that's usually a good sign. Thank you.
+@end

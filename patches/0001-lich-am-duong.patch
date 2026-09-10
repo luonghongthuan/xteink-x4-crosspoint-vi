@@ -614,7 +614,7 @@ index acda644..ba852f7 100644
    void goToReader(std::string path, bool allowFastInitialRefresh = false);
    void goToSleep(bool fromTimeout = false);
 diff --git a/src/activities/boot_sleep/SleepActivity.cpp b/src/activities/boot_sleep/SleepActivity.cpp
-index f46145e..861ed56 100644
+index f46145e..c6c22be 100644
 --- a/src/activities/boot_sleep/SleepActivity.cpp
 +++ b/src/activities/boot_sleep/SleepActivity.cpp
 @@ -5,12 +5,14 @@
@@ -673,7 +673,7 @@ index f46145e..861ed56 100644
      case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
        return renderCustomSleepScreen();
      case (CrossPointSettings::SLEEP_SCREEN_MODE::COVER):
-@@ -549,6 +573,147 @@ void SleepActivity::onEnter() {
+@@ -549,6 +573,161 @@ void SleepActivity::onEnter() {
    }
  }
  
@@ -751,18 +751,24 @@ index f46145e..861ed56 100644
 +void SleepActivity::renderVocabSleepScreen() const {
 +  const auto pageWidth = renderer.getScreenWidth();
 +  const auto pageHeight = renderer.getScreenHeight();
-+  const int left = pageWidth / 12;
-+  const int right = pageWidth - left;
-+  const int wordH = renderer.getLineHeight(UI_10_FONT_ID);
-+  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
++  const int left = pageWidth / 14;
++
++  // Reader fonts, not UI fonts: this screen is meant to be read across a desk,
++  // and the UI faces are sized for chrome rather than prose.
++  constexpr int WORD_FONT = NOTOSANS_16_FONT_ID;
++  constexpr int MEANING_FONT = NOTOSANS_14_FONT_ID;
++  constexpr int EXAMPLE_FONT = NOTOSANS_12_FONT_ID;
++  const int wordH = renderer.getLineHeight(WORD_FONT);
++  const int meaningH = renderer.getLineHeight(MEANING_FONT);
++  const int exampleH = renderer.getLineHeight(EXAMPLE_FONT);
 +
 +  renderer.clearScreen();
 +
-+  int y = pageHeight / 14;
++  int y = pageHeight / 16;
 +  renderer.drawCenteredText(UI_12_FONT_ID, y, tr(STR_SLEEP_VOCAB), true, EpdFontFamily::BOLD);
 +  y += renderer.getLineHeight(UI_12_FONT_ID) + 8;
-+  renderer.drawLine(left, y, right, y);
-+  y += 16;
++  renderer.drawLine(left, y, pageWidth - left, y);
++  y += 18;
 +
 +  // Heap rather than stack: the reader carries a 200-byte line buffer plus a
 +  // HalFile, which together exceed the 256-byte stack guidance in AGENTS.md.
@@ -773,7 +779,7 @@ index f46145e..861ed56 100644
 +  }
 +
 +  if (!reader->open(APP_STATE.vocabCursor)) {
-+    renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
++    renderer.drawCenteredText(MEANING_FONT, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
 +    // Still persist: in the alternating mode the caller has already flipped the
 +    // turn in memory and relies on this write to carry it.
 +    APP_STATE.saveToFile();
@@ -782,30 +788,38 @@ index f46145e..861ed56 100644
 +  }
 +
 +  const int wanted = SETTINGS.getVocabWordCount();
-+  // Each entry needs a word line, a meaning line and the gap between entries.
-+  const int perEntry = wordH + smallH + 14;
 +  int shown = 0;
-+  char buf[MAX_SLEEP_FILE_NAME_LEN];
 +
-+  while (shown < wanted && y + perEntry <= pageHeight - smallH && reader->next()) {
-+    // Word, then its phonetic transcription trailing on the same line so the
-+    // meaning below stays the widest element and the block reads as a column.
-+    renderer.drawText(UI_10_FONT_ID, left, y, reader->word(), true, EpdFontFamily::BOLD);
-+    const int wordWidth = renderer.getTextWidth(UI_10_FONT_ID, reader->word(), EpdFontFamily::BOLD);
-+    const char* phonetic = reader->phonetic();
-+    if (phonetic[0] != '\0') {
-+      renderer.drawText(SMALL_FONT_ID, left + wordWidth + 10, y + (wordH - smallH), phonetic);
++  while (shown < wanted && reader->next()) {
++    const bool hasExample = reader->example()[0] != '\0';
++    // Height this entry will occupy, so a partly drawn entry never runs off the
++    // bottom edge.
++    const int entryH = wordH + 4 + meaningH + (hasExample ? exampleH + 4 : 0) + 16;
++    if (y + entryH > pageHeight - meaningH / 2) break;
++
++    renderer.drawText(WORD_FONT, left, y, reader->word(), true, EpdFontFamily::BOLD);
++    y += wordH + 4;
++
++    renderer.drawText(MEANING_FONT, left, y, reader->meaning());
++    y += meaningH;
++
++    if (hasExample) {
++      // drawText does not wrap. The shipped list keeps examples inside the
++      // panel, but a hand-edited list can exceed it, and a sentence clipped
++      // mid-word reads worse than none — so an over-wide example is dropped.
++      const int available = pageWidth - 2 * left;
++      if (renderer.getTextWidth(EXAMPLE_FONT, reader->example(), EpdFontFamily::ITALIC) <= available) {
++        y += 4;
++        renderer.drawText(EXAMPLE_FONT, left, y, reader->example(), true, EpdFontFamily::ITALIC);
++        y += exampleH;
++      }
 +    }
-+    y += wordH + 2;
-+
-+    snprintf(buf, sizeof(buf), "%s", reader->meaning());
-+    renderer.drawText(SMALL_FONT_ID, left, y, buf);
-+    y += smallH + 12;
++    y += 16;
 +    shown++;
 +  }
 +
 +  if (shown == 0) {
-+    renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
++    renderer.drawCenteredText(MEANING_FONT, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
 +  } else {
 +    // Resume past the last entry shown, so the next sleep continues the list
 +    // instead of repeating it.
@@ -1854,7 +1868,7 @@ index 0000000..62a3fbc
 +}  // namespace lunar
 diff --git a/src/util/VocabFile.cpp b/src/util/VocabFile.cpp
 new file mode 100644
-index 0000000..5b7171d
+index 0000000..fd8ef5d
 --- /dev/null
 +++ b/src/util/VocabFile.cpp
 @@ -0,0 +1,122 @@
@@ -1961,7 +1975,7 @@ index 0000000..5b7171d
 +  fields[0] = line;
 +  fields[1] = first + 1;
 +  fields[2] = second + 1;
-+  return fields[0][0] != '\0' && fields[2][0] != '\0';
++  return fields[0][0] != '\0' && fields[1][0] != '\0';
 +}
 +
 +bool Reader::next() {
@@ -1982,10 +1996,10 @@ index 0000000..5b7171d
 +}  // namespace vocab
 diff --git a/src/util/VocabFile.h b/src/util/VocabFile.h
 new file mode 100644
-index 0000000..9841d4e
+index 0000000..2a7930a
 --- /dev/null
 +++ b/src/util/VocabFile.h
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,71 @@
 +#pragma once
 +
 +#include <HalStorage.h>
@@ -1996,7 +2010,13 @@ index 0000000..9841d4e
 +//
 +// File format, one entry per line, UTF-8:
 +//
-+//     word|phonetic|meaning
++//     word|meaning|example
++//
++// The third field is an example sentence and may be empty. Phonetics are
++// deliberately absent: the UI fonts are built from the `builtin` interval set,
++// which stops at U+021F and so has no IPA (U+0250-U+02FF) — an IPA column would
++// render as boxes. The EPUB study books carry the phonetics instead, where the
++// reader fonts (built with `ipa-chars`) can draw them.
 +//
 +// Blank lines and lines starting with '#' are ignored, so a list can carry
 +// comments and section headers. The list lives in /vocab; the first .txt found
@@ -2028,8 +2048,8 @@ index 0000000..9841d4e
 +  bool next();
 +
 +  const char* word() const { return fields[0]; }
-+  const char* phonetic() const { return fields[1]; }
-+  const char* meaning() const { return fields[2]; }
++  const char* meaning() const { return fields[1]; }
++  const char* example() const { return fields[2]; }
 +
 +  // Byte offset just past the entry last returned — save this as the cursor.
 +  uint32_t offset() const { return pos; }
@@ -2046,7 +2066,7 @@ index 0000000..9841d4e
 +  bool readLine();
 +
 +  // Splits `line` on '|' into fields. False when the line is a comment, blank,
-+  // or does not hold all three fields.
++  // or lacks a word and a meaning; the example field may be empty.
 +  bool parseLine();
 +};
 +
