@@ -44,10 +44,10 @@ index b9c369a..46f516a 100644
    // One-shot: the next displayBuffer()/displayBufferAsync() call uses `mode`
    // instead of what its caller asked for, then the override clears itself.
 diff --git a/lib/I18n/translations/english.yaml b/lib/I18n/translations/english.yaml
-index 6d91063..5a03473 100644
+index 6d91063..bf12ef8 100644
 --- a/lib/I18n/translations/english.yaml
 +++ b/lib/I18n/translations/english.yaml
-@@ -464,3 +464,21 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
+@@ -464,3 +464,28 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
  STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF: "Do not power off!"
  STR_RECOVERY_MODE: "Recovery Mode"
  STR_RECOVERY_MODE_HINT: "Place firmware.bin on SD card root and select it"
@@ -69,11 +69,18 @@ index 6d91063..5a03473 100644
 +STR_STATS_TOTAL: "Total"
 +STR_STATS_DAYS: "days"
 +STR_STATS_BEST: "Best"
++STR_SLEEP_VOCAB: "Vocabulary"
++STR_VOCAB_WORDS: "Words per screen"
++STR_WORDS_5: "5 words"
++STR_WORDS_6: "6 words"
++STR_WORDS_8: "8 words"
++STR_WORDS_10: "10 words"
++STR_VOCAB_NO_LIST: "No word list. Put a .txt file in /vocab"
 diff --git a/lib/I18n/translations/vietnamese.yaml b/lib/I18n/translations/vietnamese.yaml
-index 2a306e3..7641851 100644
+index 2a306e3..38d2cd6 100644
 --- a/lib/I18n/translations/vietnamese.yaml
 +++ b/lib/I18n/translations/vietnamese.yaml
-@@ -448,3 +448,21 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
+@@ -448,3 +448,28 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
  STR_RECOVERY_MODE_HINT: "Đặt firmware.bin ở thư mục gốc thẻ SD rồi chọn"
  STR_ADD_HIDDEN_NETWORK: "Thêm mạng ẩn..."
  STR_ENTER_WIFI_SSID: "Nhập tên mạng (SSID)"
@@ -95,6 +102,13 @@ index 2a306e3..7641851 100644
 +STR_STATS_TOTAL: "Tổng cộng"
 +STR_STATS_DAYS: "ngày"
 +STR_STATS_BEST: "Kỷ lục"
++STR_SLEEP_VOCAB: "Từ vựng"
++STR_VOCAB_WORDS: "Số từ mỗi lần"
++STR_WORDS_5: "5 từ"
++STR_WORDS_6: "6 từ"
++STR_WORDS_8: "8 từ"
++STR_WORDS_10: "10 từ"
++STR_VOCAB_NO_LIST: "Chưa có danh sách. Đặt file .txt vào /vocab"
 diff --git a/lib/hal/HalClock.cpp b/lib/hal/HalClock.cpp
 index c793c9e..e34492f 100644
 --- a/lib/hal/HalClock.cpp
@@ -275,27 +289,71 @@ index 7fd2f6b..21e2066 100644
    // Get current hour (0-23) and minute (0-59).
    // Returns false if RTC is not available.
 diff --git a/src/CrossPointSettings.h b/src/CrossPointSettings.h
-index 43686d7..15c584a 100644
+index 43686d7..2de4e1d 100644
 --- a/src/CrossPointSettings.h
 +++ b/src/CrossPointSettings.h
-@@ -22,6 +22,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
+@@ -22,8 +22,17 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
      BLANK = 5,
      QUICK_RESUME = 6,
      TRANSPARENT_CUSTOM = 7,
 +    DASHBOARD = 8,
++    VOCAB = 9,
      SLEEP_SCREEN_MODE_COUNT
    };
++  // Selectable entry counts for the word-list sleep screen.
++  static constexpr uint8_t VOCAB_WORD_COUNTS[] = {5, 6, 8, 10};
++  static constexpr uint8_t VOCAB_WORD_COUNT_OPTIONS = 4;
++  uint8_t getVocabWordCount() const {
++    return VOCAB_WORD_COUNTS[vocabWordsPerScreen < VOCAB_WORD_COUNT_OPTIONS ? vocabWordsPerScreen : 1];
++  }
++
    enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
-@@ -280,6 +281,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
+   enum SLEEP_SCREEN_COVER_FILTER {
+     NO_FILTER = 0,
+@@ -280,6 +289,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
    uint8_t uiTheme = LYRA;
    // Sunlight fading compensation
    uint8_t fadingFix = 0;
 +  // Spend the fast-refresh budget by ink, not by page count: dense pages are
 +  // the ones that ghost, so they cost more of the run. Off by default.
 +  uint8_t smartRefresh = 0;
++  // Index into VOCAB_WORD_COUNTS: how many entries the word-list sleep screen shows.
++  uint8_t vocabWordsPerScreen = 1;
    // Power button return from footnotes (1 = enabled, 0 = disabled)
    uint8_t pwrBtnFootnoteBack = 1;
    // Use book's embedded CSS styles for EPUB rendering (1 = enabled, 0 = disabled)
+diff --git a/src/CrossPointState.cpp b/src/CrossPointState.cpp
+index 5435e99..fc2251d 100644
+--- a/src/CrossPointState.cpp
++++ b/src/CrossPointState.cpp
+@@ -53,6 +53,7 @@ void CrossPointState::toJson(JsonDocument& doc) const {
+   doc["readerActivityLoadCount"] = readerActivityLoadCount;
+   doc["lastSleepFromReader"] = lastSleepFromReader;
+   doc["showBootScreen"] = showBootScreen;
++  doc["vocabCursor"] = vocabCursor;
+ }
+ 
+ bool CrossPointState::fromJson(JsonVariantConst doc) {
+@@ -90,5 +91,6 @@ bool CrossPointState::fromJson(JsonVariantConst doc) {
+   readerActivityLoadCount = doc["readerActivityLoadCount"] | static_cast<uint8_t>(0);
+   lastSleepFromReader = doc["lastSleepFromReader"] | false;
+   showBootScreen = doc["showBootScreen"] | true;
++  vocabCursor = doc["vocabCursor"] | 0u;
+   return true;
+ }
+diff --git a/src/CrossPointState.h b/src/CrossPointState.h
+index ebc57ba..0a97052 100644
+--- a/src/CrossPointState.h
++++ b/src/CrossPointState.h
+@@ -23,6 +23,8 @@ class CrossPointState : public PersistableStore<CrossPointState> {
+   uint8_t readerActivityLoadCount = 0;
+   bool lastSleepFromReader = false;
+   bool showBootScreen = true;
++  // Byte offset into the vocabulary list; where the next sleep screen resumes.
++  uint32_t vocabCursor = 0;
+ 
+   static const char* getFilePath() { return "/.crosspoint/state.json"; }
+   void toJson(JsonDocument& doc) const;
 diff --git a/src/ReadingStats.cpp b/src/ReadingStats.cpp
 new file mode 100644
 index 0000000..b69c101
@@ -481,21 +539,25 @@ index 0000000..78a1df4
 +
 +#define READING_STATS ReadingStats::getInstance()
 diff --git a/src/SettingsList.h b/src/SettingsList.h
-index ccbfa69..4cab9da 100644
+index ccbfa69..70b514c 100644
 --- a/src/SettingsList.h
 +++ b/src/SettingsList.h
-@@ -209,6 +209,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
+@@ -209,6 +209,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
      sleepScreenValues[CrossPointSettings::BLANK] = StrId::STR_NONE_OPT;
      sleepScreenValues[CrossPointSettings::QUICK_RESUME] = StrId::STR_QUICK_RESUME;
      sleepScreenValues[CrossPointSettings::TRANSPARENT_CUSTOM] = StrId::STR_TRANSPARENT;
 +    sleepScreenValues[CrossPointSettings::DASHBOARD] = StrId::STR_SLEEP_DASHBOARD;
++    sleepScreenValues[CrossPointSettings::VOCAB] = StrId::STR_SLEEP_VOCAB;
  
      std::vector<StrId> statusBarClockValues(CrossPointSettings::STATUS_BAR_CLOCK_MODE_COUNT);
      statusBarClockValues[CrossPointSettings::STATUS_BAR_CLOCK_HIDE] = StrId::STR_HIDE;
-@@ -238,6 +239,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
+@@ -238,6 +240,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                            {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED,
                             StrId::STR_THEME_ROUNDEDRAFF},
                            "uiTheme", StrId::STR_CAT_DISPLAY),
++        SettingInfo::Enum(StrId::STR_VOCAB_WORDS, &CrossPointSettings::vocabWordsPerScreen,
++                          {StrId::STR_WORDS_5, StrId::STR_WORDS_6, StrId::STR_WORDS_8, StrId::STR_WORDS_10},
++                          "vocabWordsPerScreen", StrId::STR_CAT_DISPLAY),
 +        SettingInfo::Toggle(StrId::STR_SMART_REFRESH, &CrossPointSettings::smartRefresh, "smartRefresh",
 +                            StrId::STR_CAT_DISPLAY),
          SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
@@ -544,7 +606,7 @@ index acda644..ba852f7 100644
    void goToReader(std::string path, bool allowFastInitialRefresh = false);
    void goToSleep(bool fromTimeout = false);
 diff --git a/src/activities/boot_sleep/SleepActivity.cpp b/src/activities/boot_sleep/SleepActivity.cpp
-index f46145e..bc2f432 100644
+index f46145e..e35093c 100644
 --- a/src/activities/boot_sleep/SleepActivity.cpp
 +++ b/src/activities/boot_sleep/SleepActivity.cpp
 @@ -5,12 +5,14 @@
@@ -562,7 +624,7 @@ index f46145e..bc2f432 100644
  #include <Txt.h>
  #include <Xtc.h>
  
-@@ -23,11 +25,13 @@
+@@ -23,11 +25,14 @@
  
  #include "CrossPointSettings.h"
  #include "CrossPointState.h"
@@ -573,19 +635,22 @@ index f46145e..bc2f432 100644
  #include "images/Logo120.h"
  #include "images/MoonIcon.h"
 +#include "util/LunarCalendar.h"
++#include "util/VocabFile.h"
  
  namespace {
  
-@@ -534,6 +538,8 @@ void SleepActivity::onEnter() {
+@@ -534,6 +539,10 @@ void SleepActivity::onEnter() {
    switch (SETTINGS.sleepScreen) {
      case (CrossPointSettings::SLEEP_SCREEN_MODE::BLANK):
        return renderBlankSleepScreen();
 +    case (CrossPointSettings::SLEEP_SCREEN_MODE::DASHBOARD):
 +      return renderDashboardSleepScreen();
++    case (CrossPointSettings::SLEEP_SCREEN_MODE::VOCAB):
++      return renderVocabSleepScreen();
      case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
        return renderCustomSleepScreen();
      case (CrossPointSettings::SLEEP_SCREEN_MODE::COVER):
-@@ -549,6 +555,77 @@ void SleepActivity::onEnter() {
+@@ -549,6 +558,143 @@ void SleepActivity::onEnter() {
    }
  }
  
@@ -660,19 +725,87 @@ index f46145e..bc2f432 100644
 +  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 +}
 +
++void SleepActivity::renderVocabSleepScreen() const {
++  const auto pageWidth = renderer.getScreenWidth();
++  const auto pageHeight = renderer.getScreenHeight();
++  const int left = pageWidth / 12;
++  const int right = pageWidth - left;
++  const int wordH = renderer.getLineHeight(UI_10_FONT_ID);
++  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
++
++  renderer.clearScreen();
++
++  int y = pageHeight / 14;
++  renderer.drawCenteredText(UI_12_FONT_ID, y, tr(STR_SLEEP_VOCAB), true, EpdFontFamily::BOLD);
++  y += renderer.getLineHeight(UI_12_FONT_ID) + 8;
++  renderer.drawLine(left, y, right, y);
++  y += 16;
++
++  // Heap rather than stack: the reader carries a 200-byte line buffer plus a
++  // HalFile, which together exceed the 256-byte stack guidance in AGENTS.md.
++  auto reader = makeUniqueNoThrow<vocab::Reader>();
++  if (!reader) {
++    LOG_ERR("SLP", "OOM: vocab reader");
++    return renderDefaultSleepScreen();
++  }
++
++  if (!reader->open(APP_STATE.vocabCursor)) {
++    renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
++    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
++    return;
++  }
++
++  const int wanted = SETTINGS.getVocabWordCount();
++  // Each entry needs a word line, a meaning line and the gap between entries.
++  const int perEntry = wordH + smallH + 14;
++  int shown = 0;
++  char buf[MAX_SLEEP_FILE_NAME_LEN];
++
++  while (shown < wanted && y + perEntry <= pageHeight - smallH && reader->next()) {
++    // Word, then its phonetic transcription trailing on the same line so the
++    // meaning below stays the widest element and the block reads as a column.
++    renderer.drawText(UI_10_FONT_ID, left, y, reader->word(), true, EpdFontFamily::BOLD);
++    const int wordWidth = renderer.getTextWidth(UI_10_FONT_ID, reader->word(), EpdFontFamily::BOLD);
++    const char* phonetic = reader->phonetic();
++    if (phonetic[0] != '\0') {
++      renderer.drawText(SMALL_FONT_ID, left + wordWidth + 10, y + (wordH - smallH), phonetic);
++    }
++    y += wordH + 2;
++
++    snprintf(buf, sizeof(buf), "%s", reader->meaning());
++    renderer.drawText(SMALL_FONT_ID, left, y, buf);
++    y += smallH + 12;
++    shown++;
++  }
++
++  if (shown == 0) {
++    renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2, tr(STR_VOCAB_NO_LIST));
++  } else {
++    // Resume past the last entry shown, so the next sleep continues the list
++    // instead of repeating it. Saved here rather than per entry: one SD write
++    // per sleep, not one per word.
++    APP_STATE.vocabCursor = reader->offset();
++    APP_STATE.saveToFile();
++  }
++
++  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
++}
++
  void SleepActivity::renderCustomSleepScreen() const {
    // Look for sleep.bmp on the root of the sd card to determine if we should
    // render a custom sleep screen instead of the default.
 diff --git a/src/activities/boot_sleep/SleepActivity.h b/src/activities/boot_sleep/SleepActivity.h
-index c866f2d..c3b9f0b 100644
+index c866f2d..1220492 100644
 --- a/src/activities/boot_sleep/SleepActivity.h
 +++ b/src/activities/boot_sleep/SleepActivity.h
-@@ -23,6 +23,8 @@ class SleepActivity final : public Activity {
+@@ -23,6 +23,10 @@ class SleepActivity final : public Activity {
    void renderLastScreenSleepScreen() const;
    void renderTransparentCustomSleepScreen() const;
    void renderBlankSleepScreen() const;
 +  // Reading tallies plus today's date, for the sleep screen as a status card.
 +  void renderDashboardSleepScreen() const;
++  // Rotating slice of the /vocab word list, for passive vocabulary review.
++  void renderVocabSleepScreen() const;
  
    bool fromTimeout = false;
  };
@@ -1692,3 +1825,202 @@ index 0000000..62a3fbc
 +int solarTermIndex24(int32_t jd, double timeZone = VIETNAM_TIMEZONE);
 +
 +}  // namespace lunar
+diff --git a/src/util/VocabFile.cpp b/src/util/VocabFile.cpp
+new file mode 100644
+index 0000000..5b7171d
+--- /dev/null
++++ b/src/util/VocabFile.cpp
+@@ -0,0 +1,122 @@
++#include "util/VocabFile.h"
++
++#include <FsHelpers.h>
++#include <Logging.h>
++
++#include <cstring>
++
++namespace vocab {
++namespace {
++
++constexpr char VOCAB_DIR[] = "/vocab";
++constexpr size_t MAX_NAME_LEN = 128;
++
++// Finds the first .txt in /vocab and opens it. Directory order on FAT is
++// insertion order rather than alphabetical, so with several lists present the
++// one that wins is simply the first the filesystem returns — documented as
++// "the first .txt found" rather than promised to be sorted.
++bool openList(HalFile& file) {
++  HalFile dir;
++  if (!Storage.openFileForRead("VOCAB", VOCAB_DIR, dir) || !dir.isDirectory()) {
++    return false;
++  }
++  char name[MAX_NAME_LEN];
++  for (auto entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
++    if (entry.isDirectory()) continue;
++    entry.getName(name, MAX_NAME_LEN);
++    // Skip macOS AppleDouble siblings (._name), which are not text.
++    if (name[0] == '\0' || name[0] == '.') continue;
++    const size_t len = strlen(name);
++    if (len < 4 || strcasecmp(name + len - 4, ".txt") != 0) continue;
++
++    char path[MAX_NAME_LEN + sizeof(VOCAB_DIR) + 1];
++    snprintf(path, sizeof(path), "%s/%s", VOCAB_DIR, name);
++    if (Storage.openFileForRead("VOCAB", path, file)) {
++      LOG_DBG("VOCAB", "Using word list: %s", path);
++      return true;
++    }
++  }
++  return false;
++}
++
++}  // namespace
++
++bool Reader::open(const uint32_t startOffset) {
++  if (!openList(file)) {
++    return false;
++  }
++  fileLen = static_cast<uint32_t>(file.size());
++  if (fileLen == 0) {
++    return false;
++  }
++  pos = startOffset < fileLen ? startOffset : 0;
++  wrapped = false;
++  return file.seek(pos);
++}
++
++bool Reader::readLine() {
++  if (pos >= fileLen) {
++    return false;
++  }
++  if (!file.seek(pos)) {
++    return false;
++  }
++  const int got = file.read(line, MAX_LINE - 1);
++  if (got <= 0) {
++    return false;
++  }
++  line[got] = '\0';
++
++  // Cut at the first newline and place the cursor just past it. A line longer
++  // than the buffer is truncated here and the cursor lands mid-line; the next
++  // read then starts at that point and the fragment fails parseLine(), so an
++  // over-long entry is skipped rather than corrupting the ones after it.
++  char* nl = strchr(line, '\n');
++  if (nl != nullptr) {
++    *nl = '\0';
++    pos += static_cast<uint32_t>(nl - line) + 1;
++  } else {
++    pos += static_cast<uint32_t>(got);
++  }
++
++  // Tolerate CRLF lists authored on Windows.
++  const size_t len = strlen(line);
++  if (len > 0 && line[len - 1] == '\r') {
++    line[len - 1] = '\0';
++  }
++  return true;
++}
++
++bool Reader::parseLine() {
++  if (line[0] == '\0' || line[0] == '#') {
++    return false;
++  }
++  char* first = strchr(line, '|');
++  if (first == nullptr) return false;
++  char* second = strchr(first + 1, '|');
++  if (second == nullptr) return false;
++
++  *first = '\0';
++  *second = '\0';
++  fields[0] = line;
++  fields[1] = first + 1;
++  fields[2] = second + 1;
++  return fields[0][0] != '\0' && fields[2][0] != '\0';
++}
++
++bool Reader::next() {
++  // Bounded so a list of nothing but comments cannot spin: every iteration
++  // either consumes bytes or triggers the single allowed wrap.
++  for (int guard = 0; guard < 512; ++guard) {
++    if (!readLine()) {
++      if (wrapped) return false;
++      wrapped = true;
++      pos = 0;
++      continue;
++    }
++    if (parseLine()) return true;
++  }
++  return false;
++}
++
++}  // namespace vocab
+diff --git a/src/util/VocabFile.h b/src/util/VocabFile.h
+new file mode 100644
+index 0000000..9841d4e
+--- /dev/null
++++ b/src/util/VocabFile.h
+@@ -0,0 +1,65 @@
++#pragma once
++
++#include <HalStorage.h>
++
++#include <cstdint>
++
++// Streams vocabulary entries off the SD card for the word-list sleep screen.
++//
++// File format, one entry per line, UTF-8:
++//
++//     word|phonetic|meaning
++//
++// Blank lines and lines starting with '#' are ignored, so a list can carry
++// comments and section headers. The list lives in /vocab; the first .txt found
++// there is used, which lets a list be swapped by dropping in a different file.
++//
++// Resource note (AGENTS.md "Resource Justification"): the file is never loaded
++// whole. Reading walks forward from a saved byte offset, one buffered chunk per
++// entry, so a 12KB list and a 1MB list cost the same RAM — one MAX_LINE buffer
++// inside the reader. The caller owns that buffer's lifetime, and because it
++// pushes the object past the 256-byte stack guidance, callers allocate the
++// reader with makeUniqueNoThrow rather than on the stack.
++namespace vocab {
++
++// Longest accepted line. Vietnamese meanings are multi-byte UTF-8, so this is
++// bytes, not characters — roughly 60-70 Vietnamese characters plus the word and
++// its phonetic transcription.
++constexpr int MAX_LINE = 200;
++
++class Reader {
++ public:
++  // Opens the list and positions at `startOffset`. An offset past the end (the
++  // list shrank since the cursor was saved) restarts from the beginning.
++  // Returns false when /vocab holds no .txt file.
++  bool open(uint32_t startOffset);
++
++  // Advances to the next well-formed entry. Wraps once at end of file so a
++  // screen never comes up short; returns false only when the list holds no
++  // usable entry at all.
++  bool next();
++
++  const char* word() const { return fields[0]; }
++  const char* phonetic() const { return fields[1]; }
++  const char* meaning() const { return fields[2]; }
++
++  // Byte offset just past the entry last returned — save this as the cursor.
++  uint32_t offset() const { return pos; }
++
++ private:
++  HalFile file;
++  char line[MAX_LINE] = {};
++  const char* fields[3] = {"", "", ""};
++  uint32_t pos = 0;
++  uint32_t fileLen = 0;
++  bool wrapped = false;
++
++  // Reads one raw line into `line`, advancing pos. False at end of file.
++  bool readLine();
++
++  // Splits `line` on '|' into fields. False when the line is a comment, blank,
++  // or does not hold all three fields.
++  bool parseLine();
++};
++
++}  // namespace vocab

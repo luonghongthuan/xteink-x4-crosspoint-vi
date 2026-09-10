@@ -112,6 +112,44 @@ sách 1–3 bậc tùy độ dày. Trang đặc chữ được dọn sớm hơn,
 Không tốn thêm RAM: đo trực tiếp trên framebuffer đang có, không giữ khung trước để
 so sánh — làm vậy sẽ mất thêm 48KB, đúng thứ chế độ một-buffer sinh ra để tiết kiệm.
 
+### Học từ vựng trên màn hình ngủ
+
+Chế độ **Vocabulary** trong `Settings → Display → Sleep Screen`. Mỗi lần máy ngủ,
+màn hình hiện 5–10 từ kế tiếp trong danh sách, kèm phiên âm và nghĩa:
+
+```
+                  Từ vựng
+    ─────────────────────────────────
+    negotiate  /nɪˈɡəʊʃieɪt/
+    đàm phán, thương lượng
+
+    leverage  /ˈliːvərɪdʒ/
+    đòn bẩy, lợi thế
+```
+
+Đây là chỗ e-ink làm tốt hơn điện thoại: màn hình ngủ là thứ bạn liếc vào hàng
+chục lần mỗi ngày mà không chủ động — đúng cơ chế **lặp lại thụ động**, thứ khiến
+từ vựng ngấm mà không cần ngồi học.
+
+Danh sách nằm ở `/vocab`, file `.txt` đầu tiên tìm thấy được dùng. Định dạng một
+dòng một từ, dòng bắt đầu bằng `#` là chú thích:
+
+```
+word|phiên âm|nghĩa
+negotiate|/nɪˈɡəʊʃieɪt/|đàm phán, thương lượng
+```
+
+Repo kèm sẵn [`vocab/business-en.txt`](vocab/business-en.txt) — **240 từ Business
+English** có phiên âm IPA và nghĩa tiếng Việt, chia 8 nhóm: họp hành và đàm phán,
+tài chính kế toán, marketing bán hàng, nhân sự, quản lý dự án, email giao tiếp,
+chiến lược vận hành, pháp lý hợp đồng.
+
+File **không bao giờ được nạp cả vào RAM**. Máy giữ một con trỏ byte trong
+`state.json` và đọc tiếp từ đó mỗi lần ngủ, nên danh sách 12KB hay 1MB đều tốn
+đúng một bộ đệm dòng 200 byte. Hết danh sách thì quay lại đầu.
+
+Số từ mỗi lần chỉnh ở `Settings → Display → Số từ mỗi lần` (5 / 6 / 8 / 10).
+
 ### Đồng bộ giờ tự động
 
 `HalClock` được mở rộng để đồng bộ NTP ngay khi có WiFi, đặt sẵn múi giờ **UTC+7**.
@@ -178,8 +216,8 @@ python3 tools/split_epub.py truyen.epub -d out/ --chapters 250
 
 ## Bản vá
 
-[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 1.209 dòng
-thêm mới qua 28 file, áp lên nhánh `develop` của
+[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 2.026 dòng
+thêm mới qua 32 file, áp lên nhánh `develop` của
 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader).
 
 ```bash
@@ -194,7 +232,8 @@ git apply ../patches/0001-lich-am-duong.patch
 | `src/util/CanChi.{cpp,h}` | Can chi, trực thần, giờ hoàng đạo |
 | `src/activities/util/CalendarActivity.{cpp,h}` | Màn hình Lịch |
 | `src/ReadingStats.{cpp,h}` | Thống kê đọc và chuỗi ngày |
-| `src/activities/boot_sleep/SleepActivity.*` | Màn hình ngủ Dashboard |
+| `src/util/VocabFile.{cpp,h}` | Đọc danh sách từ vựng theo con trỏ byte |
+| `src/activities/boot_sleep/SleepActivity.*` | Màn hình ngủ Dashboard và Từ vựng |
 | `src/activities/reader/ReaderUtils.h` | Làm tươi theo lượng mực, đếm trang |
 | `lib/GfxRenderer/GfxRenderer.*` | `inkCoverage()` — đo độ phủ mực |
 | `lib/hal/HalClock.{cpp,h}` | Đồng bộ NTP, múi giờ UTC+7 |

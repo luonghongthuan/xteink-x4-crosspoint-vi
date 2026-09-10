@@ -1,0 +1,259 @@
+# Business English — 240 từ
+# Định dạng: từ|phiên âm|nghĩa tiếng Việt
+# Dòng bắt đầu bằng # là chú thích, máy bỏ qua.
+
+# --- Họp hành & đàm phán ---
+agenda|/əˈdʒendə/|chương trình nghị sự
+negotiate|/nɪˈɡəʊʃieɪt/|đàm phán, thương lượng
+leverage|/ˈliːvərɪdʒ/|đòn bẩy, lợi thế
+concession|/kənˈseʃn/|sự nhượng bộ
+stakeholder|/ˈsteɪkhəʊldə/|bên liên quan
+consensus|/kənˈsensəs/|sự đồng thuận
+adjourn|/əˈdʒɜːn/|hoãn, tạm nghỉ (cuộc họp)
+minutes|/ˈmɪnɪts/|biên bản cuộc họp
+quorum|/ˈkwɔːrəm/|số đại biểu tối thiểu
+deadlock|/ˈdedlɒk/|bế tắc
+compromise|/ˈkɒmprəmaɪz/|thoả hiệp
+mediate|/ˈmiːdieɪt/|làm trung gian hoà giải
+proposal|/prəˈpəʊzl/|đề xuất
+counteroffer|/ˈkaʊntərɒfə/|đề nghị đối lại
+bargaining power|/ˈbɑːɡɪnɪŋ ˈpaʊə/|sức mạnh mặc cả
+walk away|/wɔːk əˈweɪ/|rút khỏi đàm phán
+common ground|/ˈkɒmən ɡraʊnd/|điểm chung
+deliverable|/dɪˈlɪvərəbl/|sản phẩm bàn giao
+follow up|/ˈfɒləʊ ʌp/|theo dõi tiếp
+brainstorm|/ˈbreɪnstɔːm/|động não, nghĩ ý tưởng
+facilitate|/fəˈsɪlɪteɪt/|điều phối, tạo điều kiện
+clarify|/ˈklærɪfaɪ/|làm rõ
+recap|/ˈriːkæp/|tóm tắt lại
+table a motion|/ˈteɪbl ə ˈməʊʃn/|đưa ra kiến nghị
+veto|/ˈviːtəʊ/|quyền phủ quyết
+unanimous|/juˈnænɪməs/|nhất trí hoàn toàn
+abstain|/əbˈsteɪn/|bỏ phiếu trắng
+escalate|/ˈeskəleɪt/|đẩy lên cấp cao hơn
+align|/əˈlaɪn/|thống nhất quan điểm
+buy-in|/ˈbaɪ ɪn/|sự ủng hộ, đồng thuận
+
+# --- Tài chính & kế toán ---
+revenue|/ˈrevənjuː/|doanh thu
+profit margin|/ˈprɒfɪt ˈmɑːdʒɪn/|biên lợi nhuận
+overhead|/ˈəʊvəhed/|chi phí quản lý chung
+asset|/ˈæset/|tài sản
+liability|/ˌlaɪəˈbɪləti/|nợ phải trả
+equity|/ˈekwəti/|vốn chủ sở hữu
+cash flow|/kæʃ fləʊ/|dòng tiền
+balance sheet|/ˈbæləns ʃiːt/|bảng cân đối kế toán
+depreciation|/dɪˌpriːʃiˈeɪʃn/|khấu hao
+amortisation|/əˌmɔːtaɪˈzeɪʃn/|phân bổ dần
+audit|/ˈɔːdɪt/|kiểm toán
+invoice|/ˈɪnvɔɪs/|hoá đơn
+receivable|/rɪˈsiːvəbl/|khoản phải thu
+payable|/ˈpeɪəbl/|khoản phải trả
+turnover|/ˈtɜːnəʊvə/|doanh thu; tỷ lệ nghỉ việc
+break-even|/breɪk ˈiːvn/|hoà vốn
+forecast|/ˈfɔːkɑːst/|dự báo
+budget|/ˈbʌdʒɪt/|ngân sách
+expenditure|/ɪkˈspendɪtʃə/|khoản chi
+allocate|/ˈæləkeɪt/|phân bổ
+solvency|/ˈsɒlvənsi/|khả năng thanh toán
+liquidity|/lɪˈkwɪdəti/|tính thanh khoản
+dividend|/ˈdɪvɪdend/|cổ tức
+valuation|/ˌvæljuˈeɪʃn/|định giá
+due diligence|/djuː ˈdɪlɪdʒəns/|thẩm định chi tiết
+write-off|/ˈraɪt ɒf/|xoá sổ nợ
+accrual|/əˈkruːəl/|dồn tích
+fiscal year|/ˈfɪskl jɪə/|năm tài chính
+capital expenditure|/ˈkæpɪtl ɪkˈspendɪtʃə/|chi phí đầu tư
+working capital|/ˈwɜːkɪŋ ˈkæpɪtl/|vốn lưu động
+
+# --- Marketing & bán hàng ---
+market share|/ˈmɑːkɪt ʃeə/|thị phần
+brand equity|/brænd ˈekwəti/|giá trị thương hiệu
+target audience|/ˈtɑːɡɪt ˈɔːdiəns/|đối tượng mục tiêu
+segmentation|/ˌseɡmenˈteɪʃn/|phân khúc
+positioning|/pəˈzɪʃnɪŋ/|định vị
+value proposition|/ˈvæljuː ˌprɒpəˈzɪʃn/|giá trị cốt lõi mang lại
+lead|/liːd/|khách hàng tiềm năng
+conversion rate|/kənˈvɜːʃn reɪt/|tỷ lệ chuyển đổi
+churn|/tʃɜːn/|tỷ lệ khách rời bỏ
+retention|/rɪˈtenʃn/|giữ chân khách hàng
+outreach|/ˈaʊtriːtʃ/|tiếp cận khách hàng
+pipeline|/ˈpaɪplaɪn/|luồng cơ hội bán hàng
+pitch|/pɪtʃ/|bài chào hàng
+upsell|/ˌʌpˈsel/|bán thêm gói cao hơn
+cross-sell|/ˈkrɒs sel/|bán chéo sản phẩm
+testimonial|/ˌtestɪˈməʊniəl/|lời chứng thực
+endorsement|/ɪnˈdɔːsmənt/|sự chứng thực, ủng hộ
+campaign|/kæmˈpeɪn/|chiến dịch
+impression|/ɪmˈpreʃn/|lượt hiển thị
+engagement|/ɪnˈɡeɪdʒmənt/|mức độ tương tác
+funnel|/ˈfʌnl/|phễu bán hàng
+prospect|/ˈprɒspekt/|khách hàng triển vọng
+quota|/ˈkwəʊtə/|chỉ tiêu doanh số
+commission|/kəˈmɪʃn/|hoa hồng
+distributor|/dɪˈstrɪbjətə/|nhà phân phối
+wholesale|/ˈhəʊlseɪl/|bán buôn
+retail|/ˈriːteɪl/|bán lẻ
+premium|/ˈpriːmiəm/|cao cấp; phí bảo hiểm
+discount|/ˈdɪskaʊnt/|chiết khấu
+rebate|/ˈriːbeɪt/|hoàn tiền một phần
+
+# --- Nhân sự & tuyển dụng ---
+recruitment|/rɪˈkruːtmənt/|tuyển dụng
+onboarding|/ˈɒnbɔːdɪŋ/|hội nhập nhân viên mới
+appraisal|/əˈpreɪzl/|đánh giá năng lực
+probation|/prəˈbeɪʃn/|thời gian thử việc
+severance|/ˈsevərəns/|trợ cấp thôi việc
+attrition|/əˈtrɪʃn/|hao hụt nhân sự
+headcount|/ˈhedkaʊnt/|số lượng nhân sự
+incentive|/ɪnˈsentɪv/|khuyến khích, thưởng
+perk|/pɜːk/|phúc lợi thêm
+mentor|/ˈmentɔː/|người dìu dắt
+delegate|/ˈdelɪɡeɪt/|uỷ quyền, giao việc
+promote|/prəˈməʊt/|thăng chức
+redundancy|/rɪˈdʌndənsi/|cắt giảm biên chế
+grievance|/ˈɡriːvəns/|khiếu nại
+compliance|/kəmˈplaɪəns/|tuân thủ
+workforce|/ˈwɜːkfɔːs/|lực lượng lao động
+succession|/səkˈseʃn/|kế nhiệm
+retain|/rɪˈteɪn/|giữ chân
+morale|/məˈrɑːl/|tinh thần làm việc
+burnout|/ˈbɜːnaʊt/|kiệt sức vì công việc
+turnaround|/ˈtɜːnəraʊnd/|xoay chuyển tình thế
+upskill|/ˈʌpskɪl/|nâng cao kỹ năng
+job description|/dʒɒb dɪˈskrɪpʃn/|mô tả công việc
+shortlist|/ˈʃɔːtlɪst/|danh sách rút gọn
+reference|/ˈrefrəns/|người tham chiếu
+notice period|/ˈnəʊtɪs ˈpɪəriəd/|thời gian báo trước
+appraise|/əˈpreɪz/|đánh giá
+workload|/ˈwɜːkləʊd/|khối lượng công việc
+headhunt|/ˈhedhʌnt/|săn đầu người
+retainer|/rɪˈteɪnə/|phí giữ chỗ dịch vụ
+
+# --- Quản lý dự án ---
+milestone|/ˈmaɪlstəʊn/|cột mốc
+scope|/skəʊp/|phạm vi công việc
+scope creep|/skəʊp kriːp/|phình phạm vi
+bottleneck|/ˈbɒtlnek/|điểm nghẽn
+contingency|/kənˈtɪndʒənsi/|dự phòng
+dependency|/dɪˈpendənsi/|phụ thuộc
+critical path|/ˈkrɪtɪkl pɑːθ/|đường găng
+backlog|/ˈbæklɒɡ/|việc tồn đọng
+sprint|/sprɪnt/|chu kỳ làm việc ngắn
+retrospective|/ˌretrəˈspektɪv/|họp rút kinh nghiệm
+roadmap|/ˈrəʊdmæp/|lộ trình
+prioritise|/praɪˈɒrətaɪz/|ưu tiên hoá
+allocate resources|/ˈæləkeɪt rɪˈsɔːsɪz/|phân bổ nguồn lực
+lead time|/liːd taɪm/|thời gian chuẩn bị
+downtime|/ˈdaʊntaɪm/|thời gian ngừng hoạt động
+throughput|/ˈθruːpʊt/|năng suất thông qua
+benchmark|/ˈbentʃmɑːk/|chuẩn so sánh
+KPI|/ˌkeɪ piː ˈaɪ/|chỉ số hiệu suất chính
+SLA|/ˌes el ˈeɪ/|cam kết mức dịch vụ
+risk register|/rɪsk ˈredʒɪstə/|sổ theo dõi rủi ro
+mitigate|/ˈmɪtɪɡeɪt/|giảm thiểu
+kickoff|/ˈkɪkɒf/|khởi động dự án
+handover|/ˈhændəʊvə/|bàn giao
+sign-off|/ˈsaɪn ɒf/|phê duyệt cuối
+rollout|/ˈrəʊlaʊt/|triển khai
+pilot|/ˈpaɪlət/|thí điểm
+iterate|/ˈɪtəreɪt/|lặp và cải tiến
+streamline|/ˈstriːmlaɪn/|tinh gọn quy trình
+workaround|/ˈwɜːkəraʊnd/|giải pháp tạm
+postmortem|/ˌpəʊstˈmɔːtəm/|phân tích sau sự cố
+
+# --- Email & giao tiếp ---
+attach|/əˈtætʃ/|đính kèm
+forward|/ˈfɔːwəd/|chuyển tiếp
+acknowledge|/əkˈnɒlɪdʒ/|xác nhận đã nhận
+confirm|/kənˈfɜːm/|xác nhận
+enquire|/ɪnˈkwaɪə/|hỏi thông tin
+request|/rɪˈkwest/|yêu cầu
+remind|/rɪˈmaɪnd/|nhắc nhở
+apologise|/əˈpɒlədʒaɪz/|xin lỗi
+regret|/rɪˈɡret/|lấy làm tiếc
+appreciate|/əˈpriːʃieɪt/|cảm kích
+attached herewith|/əˈtætʃt hɪəˈwɪð/|đính kèm theo đây
+at your earliest convenience|/ət jɔː ˈɜːliɪst kənˈviːniəns/|khi bạn thu xếp được sớm nhất
+per our conversation|/pɜː ˈaʊə ˌkɒnvəˈseɪʃn/|theo như đã trao đổi
+looking forward to|/ˈlʊkɪŋ ˈfɔːwəd tuː/|mong chờ
+on behalf of|/ɒn bɪˈhɑːf ɒv/|thay mặt cho
+with regard to|/wɪð rɪˈɡɑːd tuː/|liên quan tới
+please advise|/pliːz ədˈvaɪz/|xin cho ý kiến
+kindly note|/ˈkaɪndli nəʊt/|xin lưu ý
+as discussed|/əz dɪˈskʌst/|như đã bàn
+pending|/ˈpendɪŋ/|đang chờ xử lý
+urgent|/ˈɜːdʒənt/|khẩn
+tentative|/ˈtentətɪv/|tạm thời, chưa chốt
+subsequent|/ˈsʌbsɪkwənt/|tiếp theo sau
+prior to|/ˈpraɪə tuː/|trước khi
+concise|/kənˈsaɪs/|ngắn gọn súc tích
+elaborate|/ɪˈlæbərət/|trình bày chi tiết
+outline|/ˈaʊtlaɪn/|phác thảo
+summarise|/ˈsʌməraɪz/|tóm tắt
+reiterate|/riˈɪtəreɪt/|nhắc lại
+notify|/ˈnəʊtɪfaɪ/|thông báo
+
+# --- Chiến lược & vận hành ---
+scalable|/ˈskeɪləbl/|có thể mở rộng
+sustainable|/səˈsteɪnəbl/|bền vững
+outsource|/ˈaʊtsɔːs/|thuê ngoài
+merger|/ˈmɜːdʒə/|sáp nhập
+acquisition|/ˌækwɪˈzɪʃn/|mua lại
+subsidiary|/səbˈsɪdiəri/|công ty con
+joint venture|/dʒɔɪnt ˈventʃə/|liên doanh
+diversify|/daɪˈvɜːsɪfaɪ/|đa dạng hoá
+consolidate|/kənˈsɒlɪdeɪt/|hợp nhất, củng cố
+restructure|/ˌriːˈstrʌktʃə/|tái cơ cấu
+downsize|/ˈdaʊnsaɪz/|thu hẹp quy mô
+expand|/ɪkˈspænd/|mở rộng
+competitive edge|/kəmˈpetətɪv edʒ/|lợi thế cạnh tranh
+economies of scale|/ɪˈkɒnəmiz ɒv skeɪl/|lợi thế quy mô
+supply chain|/səˈplaɪ tʃeɪn/|chuỗi cung ứng
+procurement|/prəˈkjʊəmənt/|mua sắm, thu mua
+inventory|/ˈɪnvəntri/|hàng tồn kho
+logistics|/ləˈdʒɪstɪks/|hậu cần
+lean|/liːn/|tinh gọn
+overhaul|/ˈəʊvəhɔːl/|đại tu, cải tổ
+disrupt|/dɪsˈrʌpt/|làm thay đổi cục diện
+incumbent|/ɪnˈkʌmbənt/|doanh nghiệp đang thống lĩnh
+niche|/niːʃ/|thị trường ngách
+monopoly|/məˈnɒpəli/|độc quyền
+feasibility|/ˌfiːzəˈbɪləti/|tính khả thi
+viable|/ˈvaɪəbl/|khả thi
+synergy|/ˈsɪnədʒi/|cộng hưởng
+core competency|/kɔː ˈkɒmpɪtənsi/|năng lực cốt lõi
+value chain|/ˈvæljuː tʃeɪn/|chuỗi giá trị
+market penetration|/ˈmɑːkɪt ˌpenɪˈtreɪʃn/|thâm nhập thị trường
+
+# --- Pháp lý & hợp đồng ---
+clause|/klɔːz/|điều khoản
+breach|/briːtʃ/|vi phạm
+indemnity|/ɪnˈdemnəti/|bồi thường
+warranty|/ˈwɒrənti/|bảo hành
+liability clause|/ˌlaɪəˈbɪləti klɔːz/|điều khoản trách nhiệm
+terminate|/ˈtɜːmɪneɪt/|chấm dứt hợp đồng
+amendment|/əˈmendmənt/|sửa đổi bổ sung
+addendum|/əˈdendəm/|phụ lục
+binding|/ˈbaɪndɪŋ/|có hiệu lực ràng buộc
+void|/vɔɪd/|vô hiệu
+waiver|/ˈweɪvə/|từ bỏ quyền
+arbitration|/ˌɑːbɪˈtreɪʃn/|trọng tài
+jurisdiction|/ˌdʒʊərɪsˈdɪkʃn/|thẩm quyền tài phán
+confidentiality|/ˌkɒnfɪdenʃiˈæləti/|bảo mật
+non-disclosure|/ˌnɒn dɪsˈkləʊʒə/|không tiết lộ
+intellectual property|/ˌɪntəˈlektʃuəl ˈprɒpəti/|sở hữu trí tuệ
+trademark|/ˈtreɪdmɑːk/|nhãn hiệu
+patent|/ˈpeɪtnt/|bằng sáng chế
+royalty|/ˈrɔɪəlti/|tiền bản quyền
+licence|/ˈlaɪsns/|giấy phép
+force majeure|/ˌfɔːs mæˈʒɜː/|bất khả kháng
+governing law|/ˈɡʌvənɪŋ lɔː/|luật điều chỉnh
+in good faith|/ɪn ɡʊd feɪθ/|với thiện chí
+null and void|/nʌl ənd vɔɪd/|hoàn toàn vô hiệu
+liable|/ˈlaɪəbl/|chịu trách nhiệm pháp lý
+enforce|/ɪnˈfɔːs/|thi hành, cưỡng chế
+comply with|/kəmˈplaɪ wɪð/|tuân thủ
+stipulate|/ˈstɪpjuleɪt/|quy định rõ
+notwithstanding|/ˌnɒtwɪθˈstændɪŋ/|bất kể, mặc dù
+whereas|/weərˈæz/|xét rằng (mở đầu hợp đồng)
