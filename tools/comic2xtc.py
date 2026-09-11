@@ -17,7 +17,7 @@ XtcReaderActivity.cpp):
            moi byte la 8 diem doc, bit cao nhat la diem tren cung.
   - Gia tri diem = (bit1<<1)|bit2:  0=trang, 1=xam nhat, 2=xam dam, 3=den.
 
-Che do --bw ghi "XTC\\0"/XTG 1-bit (bit 1 = den), xep theo HANG, MSB truoc —
+Che do --bw ghi "XTC\\0"/XTG 1-bit (bit 1 = TRANG, theo reader), xep theo HANG, MSB truoc —
 file nho hon mot nua, hop truyen net thuan khong co tram (screentone).
 
 Can Pillow: pip install pillow
@@ -143,14 +143,17 @@ def pack_xth(gray):
 
 
 def pack_xtg(gray):
-    """Gray {0,255} -> 1-bit theo hang, MSB truoc, bit 1 = den."""
+    """Gray {0,255} -> 1-bit theo hang, MSB truoc.
+
+    Reader dat isBlack = !bit (XtcReaderActivity.cpp): bit 1 = TRANG, bit 0 = DEN.
+    Nen SET bit o diem trang, de o 0 cho diem den."""
     row_bytes = (W + 7) // 8
     out = bytearray(row_bytes * H)
     for y in range(H):
         base = y * row_bytes
         row = y * W
         for x in range(W):
-            if gray[row + x] < 128:
+            if gray[row + x] >= 128:  # diem trang -> bit 1
                 out[base + (x >> 3)] |= 1 << (7 - (x & 7))
     return bytes(out)
 
