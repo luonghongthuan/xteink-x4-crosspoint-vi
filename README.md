@@ -256,6 +256,24 @@ Làm nhỏ EPUB tải về mà không đụng vào văn bản: ảnh chuyển th
 python3 tools/optimize_epub.py sach.epub -d out/
 ```
 
+### `tools/comic2xtc.py`
+
+Chuyển truyện tranh (CBZ / thư mục ảnh) thành **XTC** — định dạng trang render sẵn
+của chính firmware. Truyện tranh trong EPUB bắt con chip 320KB giải mã JPEG từng
+trang; XTC thì mỗi trang đã là bitmap 480×800 đúng 4 mức xám của màn hình, máy chỉ
+việc chép vào framebuffer — lật trang gần như tức thì, RAM cố định bất kể truyện
+dài bao nhiêu.
+
+```bash
+python3 tools/comic2xtc.py "Doraemon tap 01.cbz" --split-wide --rtl
+python3 tools/comic2xtc.py line-art.cbz --bw     # nét thuần: 1-bit, nhỏ nửa file
+```
+
+Đặc tả format lấy thẳng từ mã nguồn firmware; bộ đóng gói được kiểm chứng vòng
+tròn bằng bản mô phỏng parser + renderer — 384.000 điểm ảnh một trang khớp từng
+điểm. `--split-wide --rtl` tách trang đôi của manga theo thứ tự đọc phải-sang-trái.
+Chép file `.xtc` vào `book/` như một cuốn sách thường.
+
 ### `tools/split_epub.py`
 
 Chia EPUB lớn thành nhiều tập. Truyện dài kiểu *Phàm Nhân Tu Tiên* (2400+ chương)
