@@ -265,9 +265,17 @@ việc chép vào framebuffer — lật trang gần như tức thì, RAM cố đ
 dài bao nhiêu.
 
 ```bash
-python3 tools/comic2xtc.py "Doraemon tap 01.cbz" --split-wide --rtl
-python3 tools/comic2xtc.py line-art.cbz --bw     # nét thuần: 1-bit, nhỏ nửa file
+python3 tools/comic2xtc.py "Doraemon tap 01.cbz" --bw --split-grid 2x2
+python3 tools/comic2xtc.py sach-tranh.cbz --bw --split-grid 1x2   # nhiều chữ: chia trên/dưới
 ```
+
+**Luôn dùng `--bw` (1-bit).** Chế độ 2-bit đòi ~96KB heap mỗi trang, mà ESP32-C3 chỉ
+còn ~40KB khi đang đọc — báo lỗi bộ nhớ, kể cả bản firmware đọc theo plane riêng
+(vẫn cần 96KB tổng). 1-bit chỉ cần ~48KB.
+
+Chữ manga bị nhỏ vì cả trang 1440px ép xuống 480px. `--split-grid 2x2` chia mỗi
+trang thành 4 ô, mỗi ô phóng to lấp đầy màn — chữ to gấp đôi. Overlap 14% giữa các
+ô để bong bóng thoại ở ranh giới không bị cắt.
 
 Đặc tả format lấy thẳng từ mã nguồn firmware; bộ đóng gói được kiểm chứng vòng
 tròn bằng bản mô phỏng parser + renderer — 384.000 điểm ảnh một trang khớp từng

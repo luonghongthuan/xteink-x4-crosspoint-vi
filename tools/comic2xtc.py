@@ -5,9 +5,15 @@ Vi sao XTC chu khong phai EPUB: truyen tranh trong EPUB bat may giai ma
 JPEG/PNG tung trang — tren con chip 320KB RAM viec do cham va de can bo nho.
 XTC la dinh dang trang RENDER SAN cua chinh firmware: moi trang la bitmap
 480x800 dung 4 muc xam cua man hinh, may chi viec chep vao framebuffer.
-Lat trang gan nhu tuc thi. Che do 2-bit (mac dinh) can firmware doc trang
-theo hai plane rieng (v9 tro len) — truoc do no doi 96KB khoi lien va bao
-loi bo nho. Che do --bw 1-bit luon chay, ke ca firmware cu.
+Lat trang gan nhu tuc thi, ton RAM co dinh.
+
+QUAN TRONG: dung --bw (1-bit). Che do 2-bit doi ~96KB heap moi trang, ma
+ESP32-C3 chi con ~40KB khi dang doc — luon bao loi bo nho, ke ca firmware
+v9 doc theo plane rieng (van can 96KB TONG). 1-bit chi can ~48KB, chay duoc.
+
+Chu manga bi nho vi ca trang 1440px ep xuong 480px. Dung --split-grid 2x2
+de chia moi trang thanh 4 o, moi o mot trang phong to — chu to gap doi.
+Trang nhieu chu trai ngang thi 1x2 (tren/duoi) tranh cat chu.
 
 Dac ta format lay truc tiep tu ma nguon firmware (lib/Xtc/Xtc/XtcTypes.h va
 XtcReaderActivity.cpp):
@@ -160,7 +166,27 @@ def pack_xtg(gray):
     return bytes(out)
 
 
-def build_xtc(pages_raw, out_path, bw, sharp, split_wide, rtl, quiet):
+
+def split_grid(im, cols, rows, overlap=0.14):
+    """Chia anh thanh cols x rows o, co chong lan `overlap` de khong cat mat
+    chu o ranh gioi. Tra ve list o theo hang tren xuong, trong hang trai sang
+    phai (nguoi goi dao neu rtl)."""
+    W0, H0 = im.width, im.height
+    ow, oh = int(W0 / cols * overlap), int(H0 / rows * overlap)
+    cells = []
+    for r in range(rows):
+        row = []
+        for c in range(cols):
+            x0 = max(0, W0 * c // cols - ow)
+            x1 = min(W0, W0 * (c + 1) // cols + ow)
+            y0 = max(0, H0 * r // rows - oh)
+            y1 = min(H0, H0 * (r + 1) // rows + oh)
+            row.append(im.crop((x0, y0, x1, y1)))
+        cells.append(row)
+    return cells
+
+
+def build_xtc(pages_raw, out_path, bw, sharp, split_wide, rtl, quiet, grid=None):
     blobs = []
     for idx, (name, data) in enumerate(pages_raw, 1):
         try:
@@ -169,12 +195,17 @@ def build_xtc(pages_raw, out_path, bw, sharp, split_wide, rtl, quiet):
         except Exception as e:
             print(f"  BO QUA {name}: {e}")
             continue
-        halves = [im]
-        if split_wide and im.width > im.height:
-            mid = im.width // 2
-            left, right = im.crop((0, 0, mid, im.height)), im.crop((mid, 0, im.width, im.height))
-            # Manga doc phai-sang-trai: nua PHAI la trang truoc.
-            halves = [right, left] if rtl else [left, right]
+        if grid:
+            cols, rows = grid
+            halves = []
+            for row in split_grid(im, cols, rows):
+                halves.extend(row[::-1] if rtl else row)  # rtl: phai truoc trong moi hang
+        else:
+            halves = [im]
+            if split_wide and im.width > im.height:
+                mid = im.width // 2
+                left, right = im.crop((0, 0, mid, im.height)), im.crop((mid, 0, im.width, im.height))
+                halves = [right, left] if rtl else [left, right]
         for half in halves:
             page = prepare(half, sharp)
             if bw:
@@ -182,7 +213,7 @@ def build_xtc(pages_raw, out_path, bw, sharp, split_wide, rtl, quiet):
             else:
                 blobs.append(pack_xth(dither(page, 4)))
         if not quiet:
-            print(f"  trang {idx}/{len(pages_raw)}: {name}" + (" (tach doi)" if len(halves) == 2 else ""))
+            print(f"  trang {idx}/{len(pages_raw)}: {name}" + (f" ({len(halves)} o)" if len(halves) > 1 else ""))
 
     if not blobs:
         sys.exit("Khong co trang nao dung duoc")
@@ -231,7 +262,8 @@ thu muc book/ tren the — may nhan no nhu mot cuon sach binh thuong.""")
     ap.add_argument("--bw", action="store_true", help="1-bit trang/den (XTG) — cho net thuan")
     ap.add_argument("--sharp", type=float, default=0.6, help="do net 0..2 (mac dinh 0.6)")
     ap.add_argument("--split-wide", action="store_true", help="tach trang ngang thanh hai trang doc")
-    ap.add_argument("--rtl", action="store_true", help="khi tach trang doi: nua phai truoc (manga)")
+    ap.add_argument("--rtl", action="store_true", help="khi tach: phan phai truoc (manga)")
+    ap.add_argument("--split-grid", metavar="CxR", help="chia moi trang thanh C cot x R hang o, moi o mot trang (vd 2x2) — chu to hon")
     ap.add_argument("-q", "--quiet", action="store_true")
     a = ap.parse_args()
 
@@ -244,7 +276,11 @@ thu muc book/ tren the — may nhan no nhu mot cuon sach binh thuong.""")
         base = os.path.splitext(os.path.basename(src.rstrip("/")))[0]
         out = a.out or os.path.join(a.out_dir, base + ".xtc")
         print(f"{base}: {len(pages)} anh nguon")
-        n, size = build_xtc(pages, out, a.bw, a.sharp, a.split_wide, a.rtl, a.quiet)
+        grid = None
+        if a.split_grid:
+            cols, rows = (int(v) for v in a.split_grid.lower().split("x"))
+            grid = (cols, rows)
+        n, size = build_xtc(pages, out, a.bw, a.sharp, a.split_wide, a.rtl, a.quiet, grid)
         print(f"  -> {out}: {n} trang, {size / 1048576:.1f} MB "
               f"({'1-bit' if a.bw else '2-bit, 4 muc xam'})")
 
