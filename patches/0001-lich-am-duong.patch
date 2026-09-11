@@ -44,10 +44,10 @@ index b9c369a..46f516a 100644
    // One-shot: the next displayBuffer()/displayBufferAsync() call uses `mode`
    // instead of what its caller asked for, then the override clears itself.
 diff --git a/lib/I18n/translations/english.yaml b/lib/I18n/translations/english.yaml
-index 6d91063..2069a54 100644
+index 6d91063..dd94220 100644
 --- a/lib/I18n/translations/english.yaml
 +++ b/lib/I18n/translations/english.yaml
-@@ -464,3 +464,29 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
+@@ -464,3 +464,40 @@ STR_FIRMWARE_WRITE_FAILED: "Firmware write failed"
  STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF: "Do not power off!"
  STR_RECOVERY_MODE: "Recovery Mode"
  STR_RECOVERY_MODE_HINT: "Place firmware.bin on SD card root and select it"
@@ -77,11 +77,22 @@ index 6d91063..2069a54 100644
 +STR_WORDS_10: "10 words"
 +STR_VOCAB_NO_LIST: "No word list. Put a .txt file in /vocab"
 +STR_SLEEP_VOCAB_CUSTOM: "Image + Vocabulary"
++STR_BLUETOOTH: "Bluetooth"
++STR_BLE_PAGE_TURNER: "Page turner"
++STR_BLE_TURN_ON_FIRST: "Turn Bluetooth on in Settings first"
++STR_BLE_SCANNING: "Scanning..."
++STR_BLE_CONNECTING: "Connecting..."
++STR_BLE_CONNECTED: "Connected"
++STR_BLE_SELECT_DEVICE: "Select a device to pair"
++STR_BLE_NO_DEVICES: "No devices found"
++STR_BLE_CONNECT: "Connect"
++STR_BLE_PAIR: "Pair"
++STR_BLE_FORGET_CONFIRM: "Forget?"
 diff --git a/lib/I18n/translations/vietnamese.yaml b/lib/I18n/translations/vietnamese.yaml
-index 2a306e3..0f1f8df 100644
+index 2a306e3..f959f82 100644
 --- a/lib/I18n/translations/vietnamese.yaml
 +++ b/lib/I18n/translations/vietnamese.yaml
-@@ -448,3 +448,29 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
+@@ -448,3 +448,40 @@ STR_RECOVERY_MODE: "Chế độ phục hồi"
  STR_RECOVERY_MODE_HINT: "Đặt firmware.bin ở thư mục gốc thẻ SD rồi chọn"
  STR_ADD_HIDDEN_NETWORK: "Thêm mạng ẩn..."
  STR_ENTER_WIFI_SSID: "Nhập tên mạng (SSID)"
@@ -111,6 +122,17 @@ index 2a306e3..0f1f8df 100644
 +STR_WORDS_10: "10 từ"
 +STR_VOCAB_NO_LIST: "Chưa có danh sách. Đặt file .txt vào /vocab"
 +STR_SLEEP_VOCAB_CUSTOM: "Ảnh + Từ vựng"
++STR_BLUETOOTH: "Bluetooth"
++STR_BLE_PAGE_TURNER: "Điều khiển lật trang"
++STR_BLE_TURN_ON_FIRST: "Bật Bluetooth trong Cài đặt trước"
++STR_BLE_SCANNING: "Đang tìm thiết bị..."
++STR_BLE_CONNECTING: "Đang kết nối..."
++STR_BLE_CONNECTED: "Đã kết nối"
++STR_BLE_SELECT_DEVICE: "Chọn thiết bị để ghép đôi"
++STR_BLE_NO_DEVICES: "Chưa thấy thiết bị nào"
++STR_BLE_CONNECT: "Kết nối"
++STR_BLE_PAIR: "Ghép đôi"
++STR_BLE_FORGET_CONFIRM: "Xoá?"
 diff --git a/lib/hal/HalClock.cpp b/lib/hal/HalClock.cpp
 index c793c9e..e34492f 100644
 --- a/lib/hal/HalClock.cpp
@@ -290,8 +312,30 @@ index 7fd2f6b..21e2066 100644
  
    // Get current hour (0-23) and minute (0-59).
    // Returns false if RTC is not available.
+diff --git a/platformio.ini b/platformio.ini
+index ea9e5dc..67109b0 100644
+--- a/platformio.ini
++++ b/platformio.ini
+@@ -203,6 +203,17 @@ build_flags =
+   -DENABLE_SERIAL_LOG
+   -DCROSSPOINT_WAIT_FOR_USB_SERIAL
+   -DLOG_LEVEL=2 ; Set log level to debug for development builds
++  ; BLE HID host: pairs with a page turner. BleKeyboardHost compiles its NimBLE
++  ; central only under this flag; without it the library links stubs and pulls in
++  ; no BLE code. Needs NimBLE-Arduino in lib_deps (see library.json).
++  -DFREEINK_CAP_BLE_HID_HOST=1
++lib_deps =
++  ${base.lib_deps}
++  ; Declared here rather than in BleKeyboardHost's library.json so builds that
++  ; leave the capability off pull in zero BLE code. NimBLE-Arduino, not
++  ; esp-nimble-cpp: it carries the arduino-esp32 controller-init fix.
++  h2zero/NimBLE-Arduino@^2.3.8
++  BleKeyboardHost=symlink://freeink-sdk/libs/network/BleKeyboardHost
+ 
+ 
+ [env:gh_release]
 diff --git a/src/CrossPointSettings.h b/src/CrossPointSettings.h
-index 43686d7..0b18a5d 100644
+index 43686d7..ff22395 100644
 --- a/src/CrossPointSettings.h
 +++ b/src/CrossPointSettings.h
 @@ -22,8 +22,18 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
@@ -313,13 +357,16 @@ index 43686d7..0b18a5d 100644
    enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
    enum SLEEP_SCREEN_COVER_FILTER {
      NO_FILTER = 0,
-@@ -280,6 +290,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
+@@ -280,6 +290,14 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
    uint8_t uiTheme = LYRA;
    // Sunlight fading compensation
    uint8_t fadingFix = 0;
 +  // Spend the fast-refresh budget by ink, not by page count: dense pages are
 +  // the ones that ghost, so they cost more of the run. Off by default.
 +  uint8_t smartRefresh = 0;
++  // Bluetooth page turner. Off by default: the NimBLE stack holds tens of KB
++  // of heap while resident, which EPUB inflate needs back.
++  uint8_t bleEnabled = 0;
 +  // Index into VOCAB_WORD_COUNTS: how many entries the word-list sleep screen shows.
 +  uint8_t vocabWordsPerScreen = 1;
    // Power button return from footnotes (1 = enabled, 0 = disabled)
@@ -546,7 +593,7 @@ index 0000000..78a1df4
 +
 +#define READING_STATS ReadingStats::getInstance()
 diff --git a/src/SettingsList.h b/src/SettingsList.h
-index ccbfa69..74b0997 100644
+index ccbfa69..9712151 100644
 --- a/src/SettingsList.h
 +++ b/src/SettingsList.h
 @@ -209,6 +209,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
@@ -559,7 +606,7 @@ index ccbfa69..74b0997 100644
  
      std::vector<StrId> statusBarClockValues(CrossPointSettings::STATUS_BAR_CLOCK_MODE_COUNT);
      statusBarClockValues[CrossPointSettings::STATUS_BAR_CLOCK_HIDE] = StrId::STR_HIDE;
-@@ -238,6 +241,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
+@@ -238,6 +241,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                            {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED,
                             StrId::STR_THEME_ROUNDEDRAFF},
                            "uiTheme", StrId::STR_CAT_DISPLAY),
@@ -568,6 +615,7 @@ index ccbfa69..74b0997 100644
 +                          "vocabWordsPerScreen", StrId::STR_CAT_DISPLAY),
 +        SettingInfo::Toggle(StrId::STR_SMART_REFRESH, &CrossPointSettings::smartRefresh, "smartRefresh",
 +                            StrId::STR_CAT_DISPLAY),
++        SettingInfo::Toggle(StrId::STR_BLUETOOTH, &CrossPointSettings::bleEnabled, "bleEnabled", StrId::STR_CAT_SYSTEM),
          SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
                              StrId::STR_CAT_DISPLAY),
  #if FREEINK_CAP_FRONTLIGHT
@@ -1040,10 +1088,10 @@ index cf97c24..4900764 100644
  
    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
 diff --git a/src/activities/reader/ReaderUtils.h b/src/activities/reader/ReaderUtils.h
-index ddb303e..f432050 100644
+index ddb303e..23b697a 100644
 --- a/src/activities/reader/ReaderUtils.h
 +++ b/src/activities/reader/ReaderUtils.h
-@@ -7,7 +7,10 @@
+@@ -7,8 +7,12 @@
  #include <Logging.h>
  #include <components/bars/tap-zones.h>
  
@@ -1052,9 +1100,30 @@ index ddb303e..f432050 100644
  #include "MappedInputManager.h"
 +#include "ReadingStats.h"
  #include "activities/ActivityManager.h"
++#include "util/BlePageTurner.h"
  
  namespace ReaderUtils {
-@@ -154,6 +157,41 @@ inline bool isTouchMenuGesture(const GfxRenderer& renderer, const MappedInputMan
+ 
+@@ -59,11 +63,15 @@ inline PageTurnResult detectPageTurn(const MappedInputManager& input) {
+     if (usePress) return input.wasPressed(button);
+     return input.wasLongPressed(button, SKIP_HOLD_MS) || input.wasReleased(button);
+   };
+-  const bool prev =
+-      tiltPrev || (pageButtonTriggered(MappedInputManager::Button::PageBack) || pageButtonTriggered(prevButton));
++  // A Bluetooth page turner is latched by the main loop, so consume it here
++  // alongside the physical buttons and the tilt sensor.
++  const bool blePrev = blepage::takePrev();
++  const bool bleNext = blepage::takeNext();
++  const bool prev = tiltPrev || blePrev ||
++                    (pageButtonTriggered(MappedInputManager::Button::PageBack) || pageButtonTriggered(prevButton));
+   const bool powerTurn = SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::PAGE_TURN &&
+                          input.wasReleased(MappedInputManager::Button::Power);
+-  const bool next = tiltNext || pageButtonTriggered(MappedInputManager::Button::PageForward) || powerTurn ||
++  const bool next = tiltNext || bleNext || pageButtonTriggered(MappedInputManager::Button::PageForward) || powerTurn ||
+                     pageButtonTriggered(nextButton);
+   return {prev, next, tiltPrev || tiltNext};
+ }
+@@ -154,6 +162,41 @@ inline bool isTouchMenuGesture(const GfxRenderer& renderer, const MappedInputMan
    return isTouchMenuTap(renderer, input);
  }
  
@@ -1096,7 +1165,7 @@ index ddb303e..f432050 100644
  // One helper, blocking or deferred: the async form starts the refresh and
  // returns so the caller can overlap CPU work with the panel's refresh time.
  // Async callers must not touch the framebuffer until
-@@ -161,16 +199,16 @@ inline bool isTouchMenuGesture(const GfxRenderer& renderer, const MappedInputMan
+@@ -161,16 +204,16 @@ inline bool isTouchMenuGesture(const GfxRenderer& renderer, const MappedInputMan
  // before the next page turn (the tiled grayscale cleanup does).
  inline void displayWithRefreshCycle(const GfxRenderer& renderer, int& pagesUntilFullRefresh, bool async = false) {
    const auto mode = (pagesUntilFullRefresh <= 1) ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH;
@@ -1118,7 +1187,7 @@ index ddb303e..f432050 100644
  }
  
  // Display the B/W base of a page whose grayscale pass follows. Panels that
-@@ -184,12 +222,9 @@ inline void displayBaseWithRefreshCycle(const GfxRenderer& renderer, int& pagesU
+@@ -184,12 +227,9 @@ inline void displayBaseWithRefreshCycle(const GfxRenderer& renderer, int& pagesU
      return;
    }
    const auto mode = (pagesUntilFullRefresh <= 1) ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH;
@@ -1148,6 +1217,340 @@ index 8d2f6d8..86a7e20 100644
      }
  
      renderer.clearScreen(0x00);
+diff --git a/src/activities/settings/BlePairingActivity.cpp b/src/activities/settings/BlePairingActivity.cpp
+new file mode 100644
+index 0000000..738cb27
+--- /dev/null
++++ b/src/activities/settings/BlePairingActivity.cpp
+@@ -0,0 +1,234 @@
++#include "BlePairingActivity.h"
++
++#include <BleKeyboardHost.h>
++#include <GfxRenderer.h>
++#include <I18n.h>
++
++#include <algorithm>
++#include <cstdio>
++#include <cstring>
++
++#include "CrossPointSettings.h"
++#include "components/UITheme.h"
++#include "fontIds.h"
++#include "util/BlePageTurner.h"
++
++namespace {
++
++constexpr uint32_t SCAN_MS = 6000;
++constexpr int ROW_HEIGHT = 44;
++
++// A scan result already bonded would appear twice; the bonded copy wins because
++// it carries the address type needed to reconnect without re-pairing.
++bool isBonded(const char* addr) {
++  for (uint8_t i = 0; i < BleKbd.pairedCount(); ++i) {
++    if (strcmp(BleKbd.paired(i).addr, addr) == 0) return true;
++  }
++  return false;
++}
++
++}  // namespace
++
++BlePairingActivity::BlePairingActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
++    : Activity("BlePairing", renderer, mappedInput) {}
++
++int BlePairingActivity::bondRows() const { return BleKbd.pairedCount(); }
++
++int BlePairingActivity::totalRows() const {
++  int n = bondRows();
++  for (uint8_t i = 0; i < BleKbd.deviceCount(); ++i) {
++    if (!isBonded(BleKbd.device(i).addr)) ++n;
++  }
++  return n;
++}
++
++void BlePairingActivity::onEnter() {
++  Activity::onEnter();
++  // The stack is owned by BlePageTurner::service(); this screen only drives it.
++  // Without the setting on there is nothing to scan with, so say so rather than
++  // silently showing an empty list.
++  if (blepage::isRunning()) {
++    BleKbd.startScan(SCAN_MS);
++  }
++  requestUpdate();
++}
++
++void BlePairingActivity::onExit() {
++  if (blepage::isRunning()) {
++    BleKbd.stopScan();
++    // Scan bookkeeping is tens of entries the reader does not need held.
++    BleKbd.releaseScanResults();
++  }
++  Activity::onExit();
++}
++
++void BlePairingActivity::moveSelection(const int delta) {
++  const int n = totalRows();
++  if (n <= 0) return;
++  selected = std::clamp(selected + delta, 0, n - 1);
++  confirmForget = false;
++  requestUpdate();
++}
++
++void BlePairingActivity::activateSelection() {
++  const int bonds = bondRows();
++
++  if (selected < bonds) {
++    const auto& dev = BleKbd.paired(static_cast<uint8_t>(selected));
++    if (confirmForget) {
++      BleKbd.forget(dev.addr);
++      confirmForget = false;
++      selected = 0;
++    } else {
++      failure[0] = '\0';
++      BleKbd.connect(dev.addr);
++    }
++    requestUpdate();
++    return;
++  }
++
++  // Walk the scan results, skipping bonded ones, to reach the chosen row.
++  int idx = selected - bonds;
++  for (uint8_t i = 0; i < BleKbd.deviceCount(); ++i) {
++    const auto& d = BleKbd.device(i);
++    if (isBonded(d.addr)) continue;
++    if (idx == 0) {
++      failure[0] = '\0';
++      BleKbd.connect(d.addr);
++      requestUpdate();
++      return;
++    }
++    --idx;
++  }
++}
++
++void BlePairingActivity::loop() {
++  ButtonNavigator::onPress({MappedInputManager::Button::Up}, [&] { moveSelection(-1); });
++  ButtonNavigator::onPress({MappedInputManager::Button::Down}, [&] { moveSelection(1); });
++  ButtonNavigator::onPreviousPress([&] { moveSelection(-1); });
++  ButtonNavigator::onNextPress([&] { moveSelection(1); });
++
++  ButtonNavigator::onPress({MappedInputManager::Button::Confirm}, [&] { activateSelection(); });
++
++  // Long press on a bonded row asks to remove the bond; a second Confirm does it.
++  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Confirm}, [&] {
++    if (selected < bondRows()) {
++      confirmForget = true;
++      requestUpdate();
++    }
++  });
++
++  ButtonNavigator::onPress({MappedInputManager::Button::Back}, [&] {
++    if (confirmForget) {
++      confirmForget = false;
++      requestUpdate();
++      return;
++    }
++    finish();
++  });
++
++  if (!blepage::isRunning()) return;
++
++  // Repaint as the scan finds devices and as the link state changes.
++  static uint8_t lastCount = 0;
++  static bool lastConnected = false;
++  static bool lastScanning = false;
++  const uint8_t count = BleKbd.deviceCount();
++  const bool connected = BleKbd.isConnected();
++  const bool scanning = BleKbd.isScanning();
++  if (count != lastCount || connected != lastConnected || scanning != lastScanning) {
++    lastCount = count;
++    lastConnected = connected;
++    lastScanning = scanning;
++    requestUpdate();
++  }
++
++  if (BleKbd.takeConnectFailure(failure, sizeof(failure))) {
++    requestUpdate();
++  }
++}
++
++void BlePairingActivity::render(RenderLock&&) {
++  const auto& metrics = UITheme::getInstance().getMetrics();
++  const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
++
++  renderer.clearScreen();
++  GUI.drawHeader(renderer, Rect{safe.x, safe.y + metrics.topPadding, safe.width, metrics.headerHeight},
++                 tr(STR_BLE_PAGE_TURNER));
++
++  int y = safe.y + metrics.topPadding + metrics.headerHeight + 12;
++  const int left = safe.x + 12;
++  const int right = safe.x + safe.width - 12;
++  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
++  char line[96];
++
++  if (!blepage::isRunning()) {
++    renderer.drawCenteredText(UI_10_FONT_ID, safe.y + safe.height / 2 - smallH, tr(STR_BLE_TURN_ON_FIRST));
++    const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
++    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
++    renderer.displayBuffer();
++    return;
++  }
++
++  // Status line: connection first, then scan progress, then any failure.
++  if (BleKbd.isConnected()) {
++    snprintf(line, sizeof(line), "%s: %s", tr(STR_BLE_CONNECTED), BleKbd.connectedName());
++  } else if (BleKbd.isConnecting()) {
++    snprintf(line, sizeof(line), "%s", tr(STR_BLE_CONNECTING));
++  } else if (BleKbd.isScanning()) {
++    snprintf(line, sizeof(line), "%s", tr(STR_BLE_SCANNING));
++  } else if (failure[0] != '\0') {
++    snprintf(line, sizeof(line), "%s", failure);
++  } else {
++    snprintf(line, sizeof(line), "%s", tr(STR_BLE_SELECT_DEVICE));
++  }
++  renderer.drawText(SMALL_FONT_ID, left, y, line);
++  y += smallH + 8;
++  renderer.drawLine(left, y, right, y);
++  y += 8;
++
++  const int listTop = y;
++  const int visibleRows = std::max(1, (safe.y + safe.height - listTop) / ROW_HEIGHT);
++  const int bonds = bondRows();
++  const int total = totalRows();
++
++  if (total == 0) {
++    renderer.drawCenteredText(SMALL_FONT_ID, listTop + ROW_HEIGHT, tr(STR_BLE_NO_DEVICES));
++  }
++
++  // Keep the cursor inside the window without storing a row list.
++  if (selected < scrollTop) scrollTop = selected;
++  if (selected >= scrollTop + visibleRows) scrollTop = selected - visibleRows + 1;
++
++  int row = 0;
++  const auto drawRow = [&](const char* name, const char* addr, const bool bonded) {
++    if (row >= scrollTop && row < scrollTop + visibleRows) {
++      const int ry = listTop + (row - scrollTop) * ROW_HEIGHT;
++      if (row == selected) {
++        renderer.drawRect(left, ry + 2, right - left, ROW_HEIGHT - 6, 2, true);
++      }
++      const bool isLive = bonded && BleKbd.isConnected() &&
++                          strcmp(BleKbd.connectedName(), name) == 0;
++      snprintf(line, sizeof(line), "%s%s", isLive ? "> " : (bonded ? "* " : "  "), name);
++      renderer.drawText(UI_10_FONT_ID, left + 8, ry + 6, line);
++      renderer.drawText(SMALL_FONT_ID, left + 8, ry + 6 + renderer.getLineHeight(UI_10_FONT_ID), addr);
++    }
++    ++row;
++  };
++
++  for (uint8_t i = 0; i < BleKbd.pairedCount(); ++i) {
++    const auto& d = BleKbd.paired(i);
++    drawRow(d.name, d.addr, true);
++  }
++  for (uint8_t i = 0; i < BleKbd.deviceCount(); ++i) {
++    const auto& d = BleKbd.device(i);
++    if (isBonded(d.addr)) continue;
++    drawRow(d.name, d.addr, false);
++  }
++
++  const char* confirmLabel = confirmForget ? tr(STR_BLE_FORGET_CONFIRM)
++                             : (selected < bonds ? tr(STR_BLE_CONNECT) : tr(STR_BLE_PAIR));
++  const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, "↑", "↓");
++  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
++  renderer.displayBuffer();
++}
+diff --git a/src/activities/settings/BlePairingActivity.h b/src/activities/settings/BlePairingActivity.h
+new file mode 100644
+index 0000000..1e32947
+--- /dev/null
++++ b/src/activities/settings/BlePairingActivity.h
+@@ -0,0 +1,46 @@
++#pragma once
++
++#include <cstdint>
++
++#include "activities/Activity.h"
++#include "util/ButtonNavigator.h"
++
++class GfxRenderer;
++
++// Pair and manage a Bluetooth page turner.
++//
++// The screen shows bonded devices first, then whatever a scan turned up, in one
++// list. A bonded device reconnects on selection; a new one is bonded and
++// connected. Bonds live in NVS, so the device reconnects by itself on later
++// boots and this screen is only needed once per remote.
++//
++// Resource note (AGENTS.md): no heap. Rows are read straight out of the SDK's
++// fixed-capacity tables (BleKeyboardHost holds at most kMaxDiscovered scan
++// results and kMaxBonds bonds) and rendered one at a time, so the activity adds
++// only the handful of ints below. The NimBLE stack itself is already resident —
++// this screen requires SETTINGS.bleEnabled, and BlePageTurner::service() owns
++// bringing the stack up and down.
++class BlePairingActivity final : public Activity {
++ public:
++  BlePairingActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
++
++  void onEnter() override;
++  void onExit() override;
++  void loop() override;
++  void render(RenderLock&&) override;
++
++ private:
++  ButtonNavigator buttonNavigator;
++
++  int selected = 0;
++  int scrollTop = 0;
++  // Set when a connect attempt fails, shown until the next action.
++  char failure[64] = {};
++  // Confirmation step for removing a bond, since Confirm otherwise reconnects.
++  bool confirmForget = false;
++
++  int bondRows() const;
++  int totalRows() const;
++  void activateSelection();
++  void moveSelection(int delta);
++};
+diff --git a/src/activities/settings/SettingsActivity.cpp b/src/activities/settings/SettingsActivity.cpp
+index 61a9e5e..4695d2d 100644
+--- a/src/activities/settings/SettingsActivity.cpp
++++ b/src/activities/settings/SettingsActivity.cpp
+@@ -26,6 +26,7 @@
+ #include "StatusBarSettingsActivity.h"
+ #include "TextSettingsActivity.h"
+ #include "activities/network/WifiSelectionActivity.h"
++#include "activities/settings/BlePairingActivity.h"
+ #include "activities/util/IntervalSelectionActivity.h"
+ #include "components/UITheme.h"
+ #include "components/UIThemeTokens.h"
+@@ -84,6 +85,7 @@ void SettingsActivity::rebuildSettingsLists() {
+                             SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
+   }
+   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
++  systemSettings.push_back(SettingInfo::Action(StrId::STR_BLE_PAGE_TURNER, SettingAction::BlePageTurner));
+   systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
+   systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
+   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
+@@ -337,6 +339,9 @@ void SettingsActivity::toggleCurrentSetting() {
+       case SettingAction::Network:
+         startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput, false), resultHandler);
+         break;
++      case SettingAction::BlePageTurner:
++        startActivityForResult(std::make_unique<BlePairingActivity>(renderer, mappedInput), resultHandler);
++        break;
+       case SettingAction::ClearCache:
+         startActivityForResult(std::make_unique<ClearCacheActivity>(renderer, mappedInput), resultHandler);
+         break;
+diff --git a/src/activities/settings/SettingsActivity.h b/src/activities/settings/SettingsActivity.h
+index 824d294..fa30fb6 100644
+--- a/src/activities/settings/SettingsActivity.h
++++ b/src/activities/settings/SettingsActivity.h
+@@ -25,6 +25,7 @@ enum class SettingAction {
+   DownloadFonts,
+   TextSettings,
+   KeyboardLayouts,
++  BlePageTurner,
+ };
+ 
+ struct SettingInfo {
 diff --git a/src/activities/util/CalendarActivity.cpp b/src/activities/util/CalendarActivity.cpp
 new file mode 100644
 index 0000000..38509f3
@@ -1430,7 +1833,7 @@ index 0000000..b498da6
 +  void shiftDays(int delta);  // move the selection, carrying across months/years
 +};
 diff --git a/src/main.cpp b/src/main.cpp
-index 8a3a746..b9aecf5 100644
+index 8a3a746..f6c7f07 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
 @@ -30,6 +30,7 @@
@@ -1441,7 +1844,15 @@ index 8a3a746..b9aecf5 100644
  #include "RecentBooksStore.h"
  #include "SdCardFontSystem.h"
  #include "activities/Activity.h"
-@@ -425,6 +426,7 @@ void setup() {
+@@ -39,6 +40,7 @@
+ #include "fontIds.h"
+ #include "images/LoadingIcon.h"
+ #include "platform/UsbSerialJtagHandoff.h"
++#include "util/BlePageTurner.h"
+ #include "util/ButtonNavigator.h"
+ #include "util/ScreenshotUtil.h"
+ 
+@@ -425,6 +427,7 @@ void setup() {
    }
    SETTINGS.loadFromFile();
    RECENT_BOOKS.loadFromFile();
@@ -1449,6 +1860,152 @@ index 8a3a746..b9aecf5 100644
    I18N.setLanguage(static_cast<Language>(SETTINGS.language));
    KOREADER_STORE.loadFromFile();
    OPDS_STORE.loadFromFile();
+@@ -601,6 +604,7 @@ void loop() {
+     return;
+   }
+ 
++  blepage::service();
+   halTiltSensor.update(SETTINGS.tiltPageTurn, SETTINGS.orientation, activityManager.isReaderActivity());
+ 
+   renderer.setFadingFix(SETTINGS.fadingFix);
+diff --git a/src/util/BlePageTurner.cpp b/src/util/BlePageTurner.cpp
+new file mode 100644
+index 0000000..7574537
+--- /dev/null
++++ b/src/util/BlePageTurner.cpp
+@@ -0,0 +1,87 @@
++#include "util/BlePageTurner.h"
++
++#include <BleKeyboardHost.h>
++#include <Logging.h>
++
++#include "CrossPointSettings.h"
++
++namespace blepage {
++namespace {
++
++bool nextLatched = false;
++bool prevLatched = false;
++
++// Page turners are HID keyboards with two or three keys, and vendors disagree on
++// which ones they send. Accepting the whole family costs nothing and saves the
++// user from discovering their remote sends Down where another sends PageDown.
++bool isNextKey(const freeink::KeyEvent& k) {
++  using SK = freeink::SpecialKey;
++  if (k.special == SK::Right || k.special == SK::Down || k.special == SK::PageDown ||
++      k.special == SK::Enter) {
++    return true;
++  }
++  // Space is the most common single-key remote, and 'n' shows up on a few.
++  return k.ch == ' ' || k.ch == 'n' || k.ch == 'N';
++}
++
++bool isPrevKey(const freeink::KeyEvent& k) {
++  using SK = freeink::SpecialKey;
++  if (k.special == SK::Left || k.special == SK::Up || k.special == SK::PageUp ||
++      k.special == SK::Backspace) {
++    return true;
++  }
++  return k.ch == 'p' || k.ch == 'P';
++}
++
++}  // namespace
++
++void service() {
++  const bool want = SETTINGS.bleEnabled != 0;
++  const bool running = BleKbd.isRunning();
++
++  if (want && !running) {
++    // hostName is what the page turner shows while pairing.
++    if (!BleKbd.begin("CrossPoint")) {
++      LOG_ERR("BLEPG", "BLE init failed; turning the setting back off");
++      SETTINGS.bleEnabled = 0;
++    }
++    return;
++  }
++  if (!want) {
++    if (running) {
++      // end(), not disconnect(): this returns the NimBLE host and controller
++      // RAM to the heap, which EPUB inflate needs.
++      BleKbd.end();
++      nextLatched = prevLatched = false;
++    }
++    return;
++  }
++
++  BleKbd.poll();
++
++  freeink::KeyEvent key;
++  while (BleKbd.popKey(key)) {
++    if (isNextKey(key)) {
++      nextLatched = true;
++    } else if (isPrevKey(key)) {
++      prevLatched = true;
++    }
++  }
++}
++
++bool takeNext() {
++  const bool v = nextLatched;
++  nextLatched = false;
++  return v;
++}
++
++bool takePrev() {
++  const bool v = prevLatched;
++  prevLatched = false;
++  return v;
++}
++
++bool isRunning() { return BleKbd.isRunning(); }
++bool isConnected() { return BleKbd.isConnected(); }
++
++}  // namespace blepage
+diff --git a/src/util/BlePageTurner.h b/src/util/BlePageTurner.h
+new file mode 100644
+index 0000000..377e556
+--- /dev/null
++++ b/src/util/BlePageTurner.h
+@@ -0,0 +1,39 @@
++#pragma once
++
++#include <cstdint>
++
++// Turns key presses from a paired Bluetooth page turner into page-turn requests.
++//
++// A BLE page turner is just a HID keyboard with two or three keys, so the raw
++// events arrive through the SDK's BleKeyboardHost. This layer owns three things
++// the reader should not have to know about: when the stack is allowed to be
++// resident, which keycodes count as forward and back, and the latch that carries
++// a press from the main loop into the reader's input poll.
++//
++// The latch mirrors how the tilt sensor already feeds ReaderUtils::detectPageTurn:
++// the main loop drains the key queue once per iteration, and the reader consumes
++// a one-shot flag. Without it, key events arriving between reader polls would be
++// dropped, because the reader only samples input while a page is on screen.
++//
++// Resource note (AGENTS.md "Resource Justification"): two bools and no heap here.
++// The NimBLE stack itself costs tens of KB of heap, which is why `service()`
++// tears it down the moment the user turns the setting off rather than leaving it
++// resident — EPUB inflate needs that heap back.
++namespace blepage {
++
++// Call once per main-loop iteration. Starts or stops the BLE stack to match
++// SETTINGS.bleEnabled, pumps the host, and latches any page-turn key.
++void service();
++
++// One-shot reads, consumed by the reader's page-turn detection.
++bool takeNext();
++bool takePrev();
++
++// True while the BLE stack is initialised. Used by the pairing screen, and by
++// callers that must not start heavy work while the radio is up.
++bool isRunning();
++
++// True while a page turner is connected and delivering keys.
++bool isConnected();
++
++}  // namespace blepage
 diff --git a/src/util/CanChi.cpp b/src/util/CanChi.cpp
 new file mode 100644
 index 0000000..47c90a8

@@ -34,6 +34,7 @@ nền e-ink, và script chia nhỏ truyện dài để máy không bị treo.
 | [06 — Khắc phục sự cố](docs/06-su-co.md) | `SD card error`, crash thiếu glyph, thẻ tự rớt |
 | [07 — Sách tự soạn](docs/07-sach-hoc-tieng-anh.md) | 11 EPUB: học tiếng Anh, khoa học, danh nhân, truyện thiếu nhi |
 | [08 — Font và cấu hình đọc](docs/08-font-va-cau-hinh.md) | Chọn font cho tiếng Việt, cấu hình tối ưu |
+| [09 — Lật trang Bluetooth](docs/09-bluetooth.md) | Bật BLE, ghép remote, chọn thiết bị nào |
 
 ---
 
@@ -160,6 +161,25 @@ màn hình vào nửa còn lại vĩnh viễn.
 Dù ở chế độ nào, mỗi lần ngủ cũng chỉ **ghi thẻ đúng một lần** — con trỏ từ vựng
 và lượt luân phiên đi chung một lần ghi.
 
+### Điều khiển lật trang Bluetooth
+
+ESP32-C3 có sẵn **BT 5 (LE)** nhưng firmware gốc không bật. SDK lại đã có sẵn
+`BleKeyboardHost` — một BLE HID host hoàn chỉnh, chỉ bị khóa sau cờ
+`FREEINK_CAP_BLE_HID_HOST` và không được dùng ở đâu trong `src/`.
+
+Bản vá bật cờ đó, thêm NimBLE vào `lib_deps`, rồi nối vào phần đọc: một module
+nhỏ giữ chốt phím (theo đúng mẫu cảm biến nghiêng đã có), và một màn hình ghép
+đôi trong Settings.
+
+Chi phí đo được: **Flash 84,2% → 87,9%** (+237 KB), **RAM tĩnh +8,9 KB**.
+
+> Lần đo đầu tiên của tôi ra +28 KB và suýt báo nhầm con số đó. Nó sai vì lúc ấy
+> chưa dòng code nào gọi tới thư viện, nên trình liên kết vứt bỏ gần hết NimBLE.
+> Chỉ khi nối thật vào vòng lặp chính mới ra con số đúng.
+
+CrossPet cũng có bản BLE nhưng phải tắt ảnh và CSS mới đủ chỗ. Bản này không phải
+hy sinh gì. Xem [09 — Lật trang Bluetooth](docs/09-bluetooth.md).
+
 ### Đồng bộ giờ tự động
 
 `HalClock` được mở rộng để đồng bộ NTP ngay khi có WiFi, đặt sẵn múi giờ **UTC+7**.
@@ -250,8 +270,8 @@ python3 tools/split_epub.py truyen.epub -d out/ --chapters 250
 
 ## Bản vá
 
-[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 2.070 dòng
-thêm mới qua 32 file, áp lên nhánh `develop` của
+[`patches/0001-lich-am-duong.patch`](patches/0001-lich-am-duong.patch) — 2.630 dòng
+thêm mới qua 39 file, áp lên nhánh `develop` của
 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader).
 
 ```bash
@@ -267,6 +287,8 @@ git apply ../patches/0001-lich-am-duong.patch
 | `src/activities/util/CalendarActivity.{cpp,h}` | Màn hình Lịch |
 | `src/ReadingStats.{cpp,h}` | Thống kê đọc và chuỗi ngày |
 | `src/util/VocabFile.{cpp,h}` | Đọc danh sách từ vựng theo con trỏ byte |
+| `src/util/BlePageTurner.{cpp,h}` | Chốt phím từ remote Bluetooth |
+| `src/activities/settings/BlePairingActivity.*` | Màn hình quét và ghép đôi |
 | `src/activities/boot_sleep/SleepActivity.*` | Màn hình ngủ Dashboard và Từ vựng |
 | `src/activities/reader/ReaderUtils.h` | Làm tươi theo lượng mực, đếm trang |
 | `lib/GfxRenderer/GfxRenderer.*` | `inkCoverage()` — đo độ phủ mực |
