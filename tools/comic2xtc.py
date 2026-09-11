@@ -5,7 +5,9 @@ Vi sao XTC chu khong phai EPUB: truyen tranh trong EPUB bat may giai ma
 JPEG/PNG tung trang — tren con chip 320KB RAM viec do cham va de can bo nho.
 XTC la dinh dang trang RENDER SAN cua chinh firmware: moi trang la bitmap
 480x800 dung 4 muc xam cua man hinh, may chi viec chep vao framebuffer.
-Lat trang gan nhu tuc thi, ton RAM co dinh ~96KB bat ke truyen dai bao nhieu.
+Lat trang gan nhu tuc thi. Che do 2-bit (mac dinh) can firmware doc trang
+theo hai plane rieng (v9 tro len) — truoc do no doi 96KB khoi lien va bao
+loi bo nho. Che do --bw 1-bit luon chay, ke ca firmware cu.
 
 Dac ta format lay truc tiep tu ma nguon firmware (lib/Xtc/Xtc/XtcTypes.h va
 XtcReaderActivity.cpp):

@@ -133,6 +133,105 @@ index 2a306e3..f959f82 100644
 +STR_BLE_CONNECT: "Kết nối"
 +STR_BLE_PAIR: "Ghép đôi"
 +STR_BLE_FORGET_CONFIRM: "Xoá?"
+diff --git a/lib/Xtc/Xtc.cpp b/lib/Xtc/Xtc.cpp
+index e8f8a69..fca22fd 100644
+--- a/lib/Xtc/Xtc.cpp
++++ b/lib/Xtc/Xtc.cpp
+@@ -538,6 +538,13 @@ size_t Xtc::loadPage(uint32_t pageIndex, uint8_t* buffer, size_t bufferSize) con
+   return const_cast<xtc::XtcParser*>(parser.get())->loadPage(pageIndex, buffer, bufferSize);
+ }
+ 
++bool Xtc::loadTwoPlanes(uint32_t pageIndex, uint8_t* plane1, uint8_t* plane2, size_t planeSize) const {
++  if (!loaded || !parser) {
++    return false;
++  }
++  return const_cast<xtc::XtcParser*>(parser.get())->loadTwoPlanes(pageIndex, plane1, plane2, planeSize);
++}
++
+ xtc::XtcError Xtc::loadPageStreaming(uint32_t pageIndex,
+                                      std::function<void(const uint8_t* data, size_t size, size_t offset)> callback,
+                                      size_t chunkSize) const {
+diff --git a/lib/Xtc/Xtc.h b/lib/Xtc/Xtc.h
+index 3dbd160..14528b6 100644
+--- a/lib/Xtc/Xtc.h
++++ b/lib/Xtc/Xtc.h
+@@ -82,6 +82,7 @@ class Xtc {
+    * @return Number of bytes read
+    */
+   size_t loadPage(uint32_t pageIndex, uint8_t* buffer, size_t bufferSize) const;
++  bool loadTwoPlanes(uint32_t pageIndex, uint8_t* plane1, uint8_t* plane2, size_t planeSize) const;
+ 
+   /**
+    * Load page with streaming callback
+diff --git a/lib/Xtc/Xtc/XtcParser.cpp b/lib/Xtc/Xtc/XtcParser.cpp
+index 178be7e..bd01346 100644
+--- a/lib/Xtc/Xtc/XtcParser.cpp
++++ b/lib/Xtc/Xtc/XtcParser.cpp
+@@ -467,6 +467,46 @@ size_t XtcParser::loadPage(uint32_t pageIndex, uint8_t* buffer, size_t bufferSiz
+   return bytesRead;
+ }
+ 
++bool XtcParser::loadTwoPlanes(uint32_t pageIndex, uint8_t* plane1, uint8_t* plane2, size_t planeSize) {
++  if (!m_isOpen || m_bitDepth != 2) {
++    m_lastError = XtcError::INVALID_VERSION;
++    return false;
++  }
++  if (pageIndex >= m_header.pageCount) {
++    m_lastError = XtcError::PAGE_OUT_OF_RANGE;
++    return false;
++  }
++  PageInfo page;
++  if (!readPageTableEntry(pageIndex, page) || !ensureFileOpen()) {
++    m_lastError = XtcError::READ_ERROR;
++    return false;
++  }
++  if (!m_file.seek64(page.offset)) {
++    m_lastError = XtcError::READ_ERROR;
++    return false;
++  }
++  XtgPageHeader h;
++  if (m_file.read(reinterpret_cast<uint8_t*>(&h), sizeof(h)) != sizeof(h) || h.magic != XTH_MAGIC) {
++    m_lastError = XtcError::INVALID_MAGIC;
++    return false;
++  }
++  const size_t need = (static_cast<size_t>(h.width) * h.height + 7) / 8;
++  if (need != planeSize) {
++    LOG_DBG("XTC", "Plane size mismatch: file %u vs buffer %u", (unsigned)need, (unsigned)planeSize);
++    m_lastError = XtcError::MEMORY_ERROR;
++    return false;
++  }
++  // The two planes are stored back to back after the 22-byte page header, so a
++  // single seek plus two sequential reads fills both buffers.
++  if (m_file.read(plane1, planeSize) != planeSize || m_file.read(plane2, planeSize) != planeSize) {
++    m_lastError = XtcError::READ_ERROR;
++    return false;
++  }
++  m_lastError = XtcError::OK;
++  return true;
++}
++
++
+ XtcError XtcParser::loadPageStreaming(uint32_t pageIndex,
+                                       std::function<void(const uint8_t* data, size_t size, size_t offset)> callback,
+                                       size_t chunkSize) {
+diff --git a/lib/Xtc/Xtc/XtcParser.h b/lib/Xtc/Xtc/XtcParser.h
+index f7bbbab..8de7281 100644
+--- a/lib/Xtc/Xtc/XtcParser.h
++++ b/lib/Xtc/Xtc/XtcParser.h
+@@ -57,6 +57,13 @@ class XtcParser {
+    */
+   size_t loadPage(uint32_t pageIndex, uint8_t* buffer, size_t bufferSize);
+ 
++  // 2-bit (XTH) only: read the two bit-planes into two SEPARATE buffers instead
++  // of one contiguous 96KB block. On the C3 the heap rarely has a single 96KB
++  // free span even when it has two 48KB ones, so this is what lets a 2-bit comic
++  // page render at all. Each buffer must hold planeSize = (w*h+7)/8 bytes.
++  // Returns false (and sets lastError) on any mismatch; buffers untouched then.
++  bool loadTwoPlanes(uint32_t pageIndex, uint8_t* plane1, uint8_t* plane2, size_t planeSize);
++
+   /**
+    * Streaming page load
+    * Memory-efficient method that reads page data in chunks.
 diff --git a/lib/hal/HalClock.cpp b/lib/hal/HalClock.cpp
 index c793c9e..e34492f 100644
 --- a/lib/hal/HalClock.cpp
@@ -1439,10 +1538,75 @@ index ddb303e..23b697a 100644
  
  // Grayscale anti-aliasing pass. Renders content twice (LSB + MSB) to build
 diff --git a/src/activities/reader/XtcReaderActivity.cpp b/src/activities/reader/XtcReaderActivity.cpp
-index 8d2f6d8..86a7e20 100644
+index 8d2f6d8..a7f0f5d 100644
 --- a/src/activities/reader/XtcReaderActivity.cpp
 +++ b/src/activities/reader/XtcReaderActivity.cpp
-@@ -214,8 +214,9 @@ void XtcReaderActivity::renderPage() {
+@@ -145,32 +145,8 @@ void XtcReaderActivity::renderPage() {
+   const uint16_t pageHeight = xtc->getPageHeight();
+   const uint8_t bitDepth = xtc->getBitDepth();
+ 
+-  size_t pageBufferSize;
+-  if (bitDepth == 2) {
+-    pageBufferSize = ((static_cast<size_t>(pageWidth) * pageHeight + 7) / 8) * 2;
+-  } else {
+-    pageBufferSize = ((pageWidth + 7) / 8) * pageHeight;
+-  }
+-
+-  uint8_t* pageBuffer = static_cast<uint8_t*>(malloc(pageBufferSize));
+-  if (!pageBuffer) {
+-    LOG_ERR("XTR", "Failed to allocate page buffer (%lu bytes)", pageBufferSize);
+-    renderer.clearScreen();
+-    renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_MEMORY_ERROR), true, EpdFontFamily::BOLD);
+-    renderer.displayBuffer();
+-    return;
+-  }
+-
+-  size_t bytesRead = xtc->loadPage(currentPage, pageBuffer, pageBufferSize);
+-  if (bytesRead == 0) {
+-    LOG_ERR("XTR", "Failed to load page %lu: bufferSize=%lu bitDepth=%u error=%s", currentPage, pageBufferSize,
+-            bitDepth, xtc::errorToString(xtc->getLastError()));
+-    free(pageBuffer);
+-    renderer.clearScreen();
+-    renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_PAGE_LOAD_ERROR), true, EpdFontFamily::BOLD);
+-    renderer.displayBuffer();
+-    return;
+-  }
++  // 2-bit loads its two planes into separate buffers (below); 1-bit uses this.
++  uint8_t* pageBuffer = nullptr;
+ 
+   renderer.clearScreen();
+ 
+@@ -178,8 +154,27 @@ void XtcReaderActivity::renderPage() {
+ 
+   if (bitDepth == 2) {
+     const size_t planeSize = (static_cast<size_t>(pageWidth) * pageHeight + 7) / 8;
+-    const uint8_t* plane1 = pageBuffer;
+-    const uint8_t* plane2 = pageBuffer + planeSize;
++    // Two separate 48KB buffers, not one 96KB block: the C3 heap rarely has a
++    // single 96KB free span even when it has two 48KB ones, so this is what lets
++    // a 2-bit comic page render at all.
++    auto planeBuf1 = makeUniqueNoThrow<uint8_t[]>(planeSize);
++    auto planeBuf2 = makeUniqueNoThrow<uint8_t[]>(planeSize);
++    if (!planeBuf1 || !planeBuf2) {
++      LOG_ERR("XTR", "OOM: two %u-byte planes", static_cast<unsigned>(planeSize));
++      renderer.clearScreen();
++      renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_MEMORY_ERROR), true, EpdFontFamily::BOLD);
++      renderer.displayBuffer();
++      return;
++    }
++    if (!xtc->loadTwoPlanes(currentPage, planeBuf1.get(), planeBuf2.get(), planeSize)) {
++      LOG_ERR("XTR", "Failed to load planes page %lu: %s", currentPage, xtc::errorToString(xtc->getLastError()));
++      renderer.clearScreen();
++      renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_PAGE_LOAD_ERROR), true, EpdFontFamily::BOLD);
++      renderer.displayBuffer();
++      return;
++    }
++    const uint8_t* plane1 = planeBuf1.get();
++    const uint8_t* plane2 = planeBuf2.get();
+     const size_t colBytes = (pageHeight + 7) / 8;
+ 
+     auto getPixelValue = [&](uint16_t x, uint16_t y) -> uint8_t {
+@@ -214,8 +209,9 @@ void XtcReaderActivity::renderPage() {
        }
        pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
      } else {
@@ -1453,6 +1617,37 @@ index 8d2f6d8..86a7e20 100644
      }
  
      renderer.clearScreen(0x00);
+@@ -252,12 +248,28 @@ void XtcReaderActivity::renderPage() {
+ 
+     renderer.cleanupGrayscaleWithFrameBuffer();
+ 
+-    free(pageBuffer);
+-
++    // planeBuf1/2 free themselves here.
+     LOG_DBG("XTR", "Rendered page %lu/%lu (2-bit grayscale)", currentPage + 1, xtc->getPageCount());
+     return;
+   } else {
+     const size_t srcRowBytes = (pageWidth + 7) / 8;
++    const size_t pageBufferSize = srcRowBytes * pageHeight;
++    pageBuffer = static_cast<uint8_t*>(malloc(pageBufferSize));
++    if (!pageBuffer) {
++      LOG_ERR("XTR", "Failed to allocate page buffer (%lu bytes)", pageBufferSize);
++      renderer.clearScreen();
++      renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_MEMORY_ERROR), true, EpdFontFamily::BOLD);
++      renderer.displayBuffer();
++      return;
++    }
++    if (xtc->loadPage(currentPage, pageBuffer, pageBufferSize) == 0) {
++      LOG_ERR("XTR", "Failed to load page %lu: %s", currentPage, xtc::errorToString(xtc->getLastError()));
++      free(pageBuffer);
++      renderer.clearScreen();
++      renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_PAGE_LOAD_ERROR), true, EpdFontFamily::BOLD);
++      renderer.displayBuffer();
++      return;
++    }
+ 
+     for (uint16_t srcY = 0; srcY < maxSrcY; srcY++) {
+       const size_t srcRowStart = srcY * srcRowBytes;
 diff --git a/src/activities/settings/BlePairingActivity.cpp b/src/activities/settings/BlePairingActivity.cpp
 new file mode 100644
 index 0000000..738cb27
