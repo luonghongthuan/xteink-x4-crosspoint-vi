@@ -100,6 +100,8 @@ bao giờ cũng vậy, trên phần cứng này.
 
 **Thấy nhưng kết nối thất bại** — dòng trạng thái trên cùng sẽ hiện lý do. Thường là remote đã ghép với máy khác; xoá ghép đôi ở máy kia trước.
 
-**Ghép được nhưng không lật trang** — remote có thể gửi phím ngoài danh sách trên. Danh sách nằm trong `src/util/BlePageTurner.cpp`, hàm `isNextKey` và `isPrevKey`; thêm phím của bạn vào rồi dựng lại.
+**Ghép được nhưng không lật trang** — từ v7 chuyện này gần như không còn: remote consumer-page (UGreen, remote chụp ảnh, đa số page turner rẻ) được nhận theo mã thô. Volume Up/Next Track/Play → lật tới, Volume Down/Prev Track → lật lui. Mã lạ hoàn toàn thì **tự học**: nút bấm đầu tiên thành lật tới, nút khác bấm sau thành lật lui, lưu vĩnh viễn. Muốn học lại từ đầu, xoá `bleNextCode`/`blePrevCode` trong `.crosspoint/settings.json`.
+
+**Máy crash ngẫu nhiên khi Bluetooth bật** — đã sửa từ v7. Nguyên nhân đo được trên máy: PowerManager hạ xung CPU lúc rảnh, ISR của BLE controller chạy quá hạn ở xung thấp và watchdog ngắt nổ (panic trong task `btController`). Nay firmware giữ nguyên xung CPU suốt thời gian BLE chạy — đổi lại tốn pin hơn khi bật Bluetooth, thêm một lý do tắt nó khi không dùng.
 
 **Máy chậm hẳn sau khi bật** — tắt Bluetooth đi. Radio dùng chung với WiFi, và NimBLE giữ heap.
