@@ -28,3 +28,8 @@ venv/
 
 # EPUB dung tu books/*.book — chay tools/build_epub.py de sinh lai
 books/out/
+
+# Truyen tranh: giu nguon .py, bo output
+comics/**/pages/
+comics/**/*.png
+comics/**/*.xtc
