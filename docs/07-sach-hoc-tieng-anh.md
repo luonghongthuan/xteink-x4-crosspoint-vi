@@ -117,6 +117,38 @@ Công cụ ở đây sinh sách chỉ có `h1/h2/h3/p/ul/blockquote/table` và *
 
 > Có một chi tiết nhỏ đáng biết: chú thích trong bảng CSS cố tình **không nhắc tên** thuộc tính kiểu chữ hay quy tắc nhúng font. Các công cụ dọn font nhúng (kể cả `split_epub.py` trong repo này) tìm chúng bằng biểu thức chính quy vốn không phân biệt được đâu là chú thích — một chú thích nhắc tới chúng sẽ bị cắt nhầm cùng với đoạn CSS phía sau.
 
+## Tối ưu sách có sẵn
+
+`build_epub.py` dựng sách mới. Với sách tải về đã có sẵn, dùng
+[`tools/optimize_epub.py`](../tools/optimize_epub.py) — nó làm nhỏ file mà **không
+đụng một byte nào vào văn bản**.
+
+```bash
+pip install pillow
+python3 tools/optimize_epub.py sach.epub              # ra sach.opt.epub
+python3 tools/optimize_epub.py *.epub -d out/
+```
+
+Hai việc nó làm:
+
+**Ảnh** — chuyển thang xám và thu về vừa 480×800. Màn hình chỉ hiện 4 mức xám, nên
+màu sắc và độ phân giải thừa đều bị vứt bỏ lúc hiển thị; giữ chúng lại chỉ tốn chỗ
+và tốn RAM giải mã. Một bìa 1038×1384 màu nặng 274KB, cùng bìa đó ở 480×640 thang
+xám chỉ còn 83KB.
+
+**CSS** — bỏ khai báo kiểu chữ và quy tắc nhúng font, để font người đọc chọn được áp
+dụng.
+
+Tên file và đuôi file không đổi, nên mọi tham chiếu trong HTML và manifest vẫn đúng.
+Công cụ không sửa HTML.
+
+Kết quả thực tế trên bản *Trại Súc Vật* (Calibre xuất ra): **523 KB → 225 KB, nhỏ hơn
+57%**, và cả 15 file HTML giữ nguyên từng byte.
+
+> Nếu sách có sơ đồ hay chữ trong ảnh, kiểm tra lại sau khi tối ưu. Ảnh nét được giữ
+> nguyên định dạng PNG nên thường vẫn đọc được, nhưng thu nhỏ quá mức thì chữ trong
+> ảnh sẽ nhoè.
+
 ## Kiểm tra sách vừa dựng
 
 ```bash

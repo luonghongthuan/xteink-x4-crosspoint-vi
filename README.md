@@ -226,6 +226,16 @@ python3 tools/build_epub.py books/01-business-english.book -d out/
 Định dạng nguồn xem [`books/`](books/) — văn bản thuần, có khối `@vocab` cho bảng từ
 vựng và `@dialog` cho hội thoại.
 
+### `tools/optimize_epub.py`
+
+Làm nhỏ EPUB tải về mà không đụng vào văn bản: ảnh chuyển thang xám và thu về vừa
+480×800, CSS bỏ khai báo kiểu chữ. Trên một bản sách Calibre xuất ra, kết quả là
+**523 KB → 225 KB** với cả 15 file HTML giữ nguyên từng byte.
+
+```bash
+python3 tools/optimize_epub.py sach.epub -d out/
+```
+
 ### `tools/split_epub.py`
 
 Chia EPUB lớn thành nhiều tập. Truyện dài kiểu *Phàm Nhân Tu Tiên* (2400+ chương)
