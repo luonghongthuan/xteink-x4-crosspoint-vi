@@ -1170,10 +1170,78 @@ index f9968b2..e41c400 100644
          SETTINGS.saveToFile();
        }
 diff --git a/src/activities/reader/EpubReaderActivity.cpp b/src/activities/reader/EpubReaderActivity.cpp
-index 7059954..e81aed7 100644
+index 7059954..334aac1 100644
 --- a/src/activities/reader/EpubReaderActivity.cpp
 +++ b/src/activities/reader/EpubReaderActivity.cpp
-@@ -1584,8 +1584,9 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
+@@ -41,6 +41,7 @@
+ #include "activities/settings/TextSettingsActivity.h"
+ #include "components/UITheme.h"
+ #include "fontIds.h"
++#include "util/BlePageTurner.h"
+ #include "util/BookmarkUtil.h"
+ #include "util/ButtonNavigator.h"
+ #include "util/ScreenshotUtil.h"
+@@ -292,7 +293,29 @@ void EpubReaderActivity::openReaderMenu() {
+       });
+ }
+ 
++// With NimBLE resident the free heap sits just under the build gate (measured:
++// 30.9KB free vs the 32KB floor), so a book that still needs indexing would
++// never index. Trade the radio for the build: end the BLE stack, index, then
++// let blepage::service() bring the remote back.
++void EpubReaderActivity::ensureHeapForBuild() {
++  if (blePausedForBuild) return;
++  const bool gated = ESP.getFreeHeap() < BACKGROUND_BUILD_MIN_FREE_HEAP ||
++                     ESP.getMaxAllocHeap() < BACKGROUND_BUILD_MIN_MAX_ALLOC + 8 * 1024;
++  if (gated && blepage::isRunning()) {
++    blepage::pauseForBuild();
++    blePausedForBuild = true;
++  }
++}
++
++void EpubReaderActivity::releaseBleAfterBuild() {
++  if (blePausedForBuild) {
++    blepage::resumeAfterBuild();
++    blePausedForBuild = false;
++  }
++}
++
+ bool EpubReaderActivity::buildTickHeapGate() {
++  ensureHeapForBuild();
+   const size_t freeHeap = ESP.getFreeHeap();
+   const size_t maxBlock = ESP.getMaxAllocHeap();
+   buildHeapPaused = freeHeap < BACKGROUND_BUILD_MIN_FREE_HEAP || maxBlock < BACKGROUND_BUILD_MIN_MAX_ALLOC;
+@@ -391,8 +414,11 @@ void EpubReaderActivity::loop() {
+         LOG_ERR("ERS", "Background section build failed");
+         section.reset();
+         requestUpdate();
+-      } else if (section->isBuildComplete() && applyDeferredReposition()) {
+-        requestUpdate();
++      } else if (section->isBuildComplete()) {
++        releaseBleAfterBuild();
++        if (applyDeferredReposition()) {
++          requestUpdate();
++        }
+       }
+     }
+   }
+@@ -1238,6 +1264,7 @@ void EpubReaderActivity::renderBook() {
+           bool started;
+           {
+             GfxRenderer::FrameBufferLoan loan(renderer);
++            ensureHeapForBuild();
+             started = section->startBuild(renderSpec, [this] { showBuildPopup(renderer, pagesUntilFullRefresh); });
+           }
+           if (!started) {
+@@ -1310,6 +1337,7 @@ void EpubReaderActivity::renderBook() {
+     pagesUntilFullRefresh = 1;
+   }
+   while (section->isPartial() && section->currentPage >= static_cast<int>(section->pageCount)) {
++    ensureHeapForBuild();
+     if (!section->isBuilding() && !section->startBuild(renderSpec)) {
+       LOG_ERR("ERS", "Failed to start partial extension build");
+       section.reset();
+@@ -1584,8 +1612,9 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
      } else if (overlapRefresh) {
        ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh, /*async=*/true);
      } else {
@@ -1184,6 +1252,22 @@ index 7059954..e81aed7 100644
      }
    } else {
      ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
+diff --git a/src/activities/reader/EpubReaderActivity.h b/src/activities/reader/EpubReaderActivity.h
+index 6a973e4..88757c5 100644
+--- a/src/activities/reader/EpubReaderActivity.h
++++ b/src/activities/reader/EpubReaderActivity.h
+@@ -112,6 +112,11 @@ class EpubReaderActivity final : public ReaderActivity {
+   static constexpr size_t BACKGROUND_BUILD_MIN_MAX_ALLOC = 16 * 1024;
+   bool buildTickHeapGate();
+   bool buildHeapPaused = false;
++  // True while this reader holds a blepage::pauseForBuild(); released on
++  // build completion and unconditionally in onExit.
++  bool blePausedForBuild = false;
++  void ensureHeapForBuild();
++  void releaseBleAfterBuild();
+   static constexpr size_t RENDER_MIN_FREE_HEAP = 24 * 1024;
+   static constexpr int BUILD_WINDOW_AHEAD = 5;
+   static constexpr int PARTIAL_REBUILD_START_MARGIN = 15;
 diff --git a/src/activities/reader/KOReaderSyncActivity.cpp b/src/activities/reader/KOReaderSyncActivity.cpp
 index 4430cf2..9ed13c6 100644
 --- a/src/activities/reader/KOReaderSyncActivity.cpp
@@ -1203,10 +1287,10 @@ index 4430cf2..9ed13c6 100644
    ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
  
 diff --git a/src/activities/reader/ReaderActivity.cpp b/src/activities/reader/ReaderActivity.cpp
-index cf97c24..4900764 100644
+index cf97c24..8ff6b85 100644
 --- a/src/activities/reader/ReaderActivity.cpp
 +++ b/src/activities/reader/ReaderActivity.cpp
-@@ -10,6 +10,7 @@
+@@ -10,10 +10,12 @@
  #include "CrossPointState.h"
  #include "EpubReaderActivity.h"
  #include "ReaderUtils.h"
@@ -1214,7 +1298,12 @@ index cf97c24..4900764 100644
  #include "RecentBooksStore.h"
  #include "SdCardFontSystem.h"
  #include "TxtReaderActivity.h"
-@@ -63,6 +64,7 @@ void ReaderActivity::onEnter() {
+ #include "XtcReaderActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ ReaderActivity::ReaderActivity(const char* name, GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                std::string bookPath, const bool allowFastInitialRefresh)
+@@ -63,6 +65,7 @@ void ReaderActivity::onEnter() {
      return;
    }
  
@@ -1222,10 +1311,14 @@ index cf97c24..4900764 100644
    APP_STATE.openEpubPath = bookPath;
    APP_STATE.saveToFile();
    RECENT_BOOKS.addBook(bookPath, getBookTitle(), getBookAuthor(), getBookThumbBmpPath());
-@@ -70,6 +72,7 @@ void ReaderActivity::onEnter() {
+@@ -70,6 +73,11 @@ void ReaderActivity::onEnter() {
  }
  
  void ReaderActivity::onExit() {
++  // A build-time BLE pause must not outlive the reader. The counter only
++  // decrements when a pause is actually held, so this is safe unconditionally
++  // for Txt/Xtc readers too.
++  blepage::resumeAfterBuild();
 +  READING_STATS.endSession();
    Activity::onExit();
  
@@ -2096,10 +2189,10 @@ index 8a3a746..a39d79d 100644
    renderer.setFadingFix(SETTINGS.fadingFix);
 diff --git a/src/util/BlePageTurner.cpp b/src/util/BlePageTurner.cpp
 new file mode 100644
-index 0000000..86c3536
+index 0000000..28d5ed8
 --- /dev/null
 +++ b/src/util/BlePageTurner.cpp
-@@ -0,0 +1,172 @@
+@@ -0,0 +1,191 @@
 +#include "util/BlePageTurner.h"
 +
 +#include <BleKeyboardHost.h>
@@ -2113,6 +2206,7 @@ index 0000000..86c3536
 +
 +bool nextLatched = false;
 +bool prevLatched = false;
++uint8_t buildPauseCount = 0;
 +
 +// Page turners are HID keyboards with two or three keys, and vendors disagree on
 +// which ones they send. Accepting the whole family costs nothing and saves the
@@ -2179,6 +2273,9 @@ index 0000000..86c3536
 +  const bool want = SETTINGS.bleEnabled != 0;
 +  const bool running = BleKbd.isRunning();
 +
++  if (buildPauseCount > 0) {
++    return;  // heavy work owns the heap; resumeAfterBuild() lets us back in
++  }
 +  if (want && !running) {
 +    // One radio and one small heap: the WiFi driver and the NimBLE host do
 +    // not fit together, so BLE only starts once WiFi is fully down.
@@ -2252,6 +2349,21 @@ index 0000000..86c3536
 +bool isRunning() { return BleKbd.isRunning(); }
 +bool isConnected() { return BleKbd.isConnected(); }
 +
++void pauseForBuild() {
++  ++buildPauseCount;
++  if (BleKbd.isRunning()) {
++    BleKbd.end();  // returns the NimBLE host+controller heap to the build
++    nextLatched = prevLatched = false;
++    LOG_INF("BLEPG", "BLE paused for section build");
++  }
++}
++
++void resumeAfterBuild() {
++  if (buildPauseCount > 0) --buildPauseCount;
++  // service() restarts the stack on the next main-loop pass when the count
++  // reaches zero and the setting is still on.
++}
++
 +void shutdownForSleep() {
 +  if (BleKbd.isRunning()) {
 +    BleKbd.end();
@@ -2274,10 +2386,10 @@ index 0000000..86c3536
 +}  // namespace blepage
 diff --git a/src/util/BlePageTurner.h b/src/util/BlePageTurner.h
 new file mode 100644
-index 0000000..26a74c6
+index 0000000..6e0b60b
 --- /dev/null
 +++ b/src/util/BlePageTurner.h
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,60 @@
 +#pragma once
 +
 +#include <cstdint>
@@ -2328,6 +2440,14 @@ index 0000000..26a74c6
 +// before the modem domain powers down) but keeps the setting, so service()
 +// brings BLE back after wake — wake from deep sleep is a chip reset.
 +void shutdownForSleep();
++
++// Section indexing needs ~40KB of contiguous heap; with NimBLE resident the
++// reader's build gate (32KB free) never opens. These bracket heavy work:
++// pause ends the stack WITHOUT touching the setting, so service() restarts it
++// (and auto-reconnects the bonded remote) once the matching resume runs.
++// Counted, so nested/overlapping heavy sections compose.
++void pauseForBuild();
++void resumeAfterBuild();
 +
 +}  // namespace blepage
 diff --git a/src/util/CanChi.cpp b/src/util/CanChi.cpp

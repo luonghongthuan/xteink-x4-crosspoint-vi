@@ -105,3 +105,5 @@ bao giờ cũng vậy, trên phần cứng này.
 **Máy crash ngẫu nhiên khi Bluetooth bật** — đã sửa từ v7. Nguyên nhân đo được trên máy: PowerManager hạ xung CPU lúc rảnh, ISR của BLE controller chạy quá hạn ở xung thấp và watchdog ngắt nổ (panic trong task `btController`). Nay firmware giữ nguyên xung CPU suốt thời gian BLE chạy — đổi lại tốn pin hơn khi bật Bluetooth, thêm một lý do tắt nó khi không dùng.
 
 **Máy chậm hẳn sau khi bật** — tắt Bluetooth đi. Radio dùng chung với WiFi, và NimBLE giữ heap.
+
+**Sách mới báo "Failed to index - invalid book", có khi kèm khởi động lại** — đã sửa từ v8. Nguyên nhân đo được: NimBLE thường trú kéo heap trống xuống ~30,9KB, ngay dưới sàn 32KB mà bộ dựng chỉ mục đòi hỏi — sách chưa từng index thì không bao giờ index nổi, còn nhánh dựng trực tiếp thì cạn bộ nhớ và máy khởi động lại. Sách đã có cache từ trước vẫn mở bình thường, nên lỗi trông như "chỉ hỏng mấy cuốn mới". Từ v8 reader tự **tạm ngắt BLE khi cần dựng chỉ mục**, dựng xong tự nối lại remote — khi mở một cuốn sách mới, remote rớt vài giây rồi tự quay lại là hành vi đúng.
