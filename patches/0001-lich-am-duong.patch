@@ -898,6 +898,24 @@ index c866f2d..1220492 100644
  
    bool fromTimeout = false;
  };
+diff --git a/src/activities/browser/OpdsBookBrowserActivity.cpp b/src/activities/browser/OpdsBookBrowserActivity.cpp
+index 4557e38..e367c08 100644
+--- a/src/activities/browser/OpdsBookBrowserActivity.cpp
++++ b/src/activities/browser/OpdsBookBrowserActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "OpdsBookBrowserActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <Arduino.h>
+ #include <FontCacheManager.h>
+@@ -44,6 +45,7 @@ OpdsBookBrowserActivity::OpdsBookBrowserActivity(GfxRenderer& renderer, MappedIn
+       server(std::move(server)) {}
+ 
+ void OpdsBookBrowserActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+ 
+   state = BrowserState::CHECK_WIFI;
 diff --git a/src/activities/home/HomeActivity.cpp b/src/activities/home/HomeActivity.cpp
 index c29d9b2..b9357ff 100644
 --- a/src/activities/home/HomeActivity.cpp
@@ -1014,11 +1032,61 @@ index 4ea540e..92d61ad 100644
    int getMenuItemCount() const;
    bool storeCoverBuffer();    // Store frame buffer for cover image
    bool restoreCoverBuffer();  // Restore frame buffer from stored cover
+diff --git a/src/activities/network/CalibreConnectActivity.cpp b/src/activities/network/CalibreConnectActivity.cpp
+index 1b43ec8..828fd36 100644
+--- a/src/activities/network/CalibreConnectActivity.cpp
++++ b/src/activities/network/CalibreConnectActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "CalibreConnectActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <ESPmDNS.h>
+ #include <FontCacheManager.h>
+@@ -18,6 +19,7 @@ constexpr const char* HOSTNAME = "crosspoint";
+ }  // namespace
+ 
+ void CalibreConnectActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+ 
+   requestUpdate();
+diff --git a/src/activities/network/CrossPointWebServerActivity.cpp b/src/activities/network/CrossPointWebServerActivity.cpp
+index 2285fc6..6fdbcea 100644
+--- a/src/activities/network/CrossPointWebServerActivity.cpp
++++ b/src/activities/network/CrossPointWebServerActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "CrossPointWebServerActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <DNSServer.h>
+ #include <ESPmDNS.h>
+@@ -62,6 +63,7 @@ int barsForRssi(int rssi, int currentBars) {
+ }  // namespace
+ 
+ void CrossPointWebServerActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+ 
+   LOG_DBG("WEBACT", "Free heap at onEnter: %d bytes", ESP.getFreeHeap());
 diff --git a/src/activities/network/WifiSelectionActivity.cpp b/src/activities/network/WifiSelectionActivity.cpp
-index f9968b2..3690b27 100644
+index f9968b2..e41c400 100644
 --- a/src/activities/network/WifiSelectionActivity.cpp
 +++ b/src/activities/network/WifiSelectionActivity.cpp
-@@ -517,11 +517,20 @@ void WifiSelectionActivity::checkConnectionStatus() {
+@@ -1,4 +1,5 @@
+ #include "WifiSelectionActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <GfxRenderer.h>
+ #include <HalClock.h>
+@@ -86,6 +87,7 @@ void WifiSelectionActivity::onPromptEvent(const fui::ActionEvent& event, void* u
+ }
+ 
+ void WifiSelectionActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+ 
+   // Load saved WiFi credentials - SD card operations need lock as we use SPI
+@@ -517,11 +519,20 @@ void WifiSelectionActivity::checkConnectionStatus() {
              WiFi.RSSI());
  #endif
  
@@ -1059,6 +1127,24 @@ index 7059954..e81aed7 100644
      }
    } else {
      ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
+diff --git a/src/activities/reader/KOReaderSyncActivity.cpp b/src/activities/reader/KOReaderSyncActivity.cpp
+index 4430cf2..9ed13c6 100644
+--- a/src/activities/reader/KOReaderSyncActivity.cpp
++++ b/src/activities/reader/KOReaderSyncActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "KOReaderSyncActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <GfxRenderer.h>
+ #include <HalStorage.h>
+@@ -366,6 +367,7 @@ void KOReaderSyncActivity::performUpload() {
+ }
+ 
+ void KOReaderSyncActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+ 
 diff --git a/src/activities/reader/ReaderActivity.cpp b/src/activities/reader/ReaderActivity.cpp
 index cf97c24..4900764 100644
 --- a/src/activities/reader/ReaderActivity.cpp
@@ -1509,6 +1595,78 @@ index 0000000..1e32947
 +  void activateSelection();
 +  void moveSelection(int delta);
 +};
+diff --git a/src/activities/settings/ClockSyncActivity.cpp b/src/activities/settings/ClockSyncActivity.cpp
+index 1765b07..a9b66d2 100644
+--- a/src/activities/settings/ClockSyncActivity.cpp
++++ b/src/activities/settings/ClockSyncActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "ClockSyncActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <GfxRenderer.h>
+ #include <HalClock.h>
+@@ -16,6 +17,7 @@
+ #include "fontIds.h"
+ 
+ void ClockSyncActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+   state = SYNCING;
+   syncedTime[0] = '\0';
+diff --git a/src/activities/settings/FontDownloadActivity.cpp b/src/activities/settings/FontDownloadActivity.cpp
+index 75b6fe6..3f4977f 100644
+--- a/src/activities/settings/FontDownloadActivity.cpp
++++ b/src/activities/settings/FontDownloadActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "FontDownloadActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <ArduinoJson.h>
+ #include <FontCacheManager.h>
+@@ -71,6 +72,7 @@ void FontDownloadActivity::onBackButton() {
+ // --- Lifecycle ---
+ 
+ void FontDownloadActivity::onEnter() {
++  blepage::suspendForWifi();
+   UiListActivity::onEnter();
+   WiFi.mode(WIFI_STA);
+   startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
+diff --git a/src/activities/settings/KOReaderAuthActivity.cpp b/src/activities/settings/KOReaderAuthActivity.cpp
+index 48ac5cd..5bac392 100644
+--- a/src/activities/settings/KOReaderAuthActivity.cpp
++++ b/src/activities/settings/KOReaderAuthActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "KOReaderAuthActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <GfxRenderer.h>
+ #include <I18n.h>
+@@ -55,6 +56,7 @@ void KOReaderAuthActivity::performAuthentication() {
+ }
+ 
+ void KOReaderAuthActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+ 
+   // Check if already connected
+diff --git a/src/activities/settings/OtaUpdateActivity.cpp b/src/activities/settings/OtaUpdateActivity.cpp
+index f8c0879..1512134 100644
+--- a/src/activities/settings/OtaUpdateActivity.cpp
++++ b/src/activities/settings/OtaUpdateActivity.cpp
+@@ -1,4 +1,5 @@
+ #include "OtaUpdateActivity.h"
++#include "util/BlePageTurner.h"
+ 
+ #include <GfxRenderer.h>
+ #include <I18n.h>
+@@ -73,6 +74,7 @@ void OtaUpdateActivity::onWifiSelectionComplete(const bool success) {
+ }
+ 
+ void OtaUpdateActivity::onEnter() {
++  blepage::suspendForWifi();
+   Activity::onEnter();
+ 
+   // Turn on WiFi immediately
 diff --git a/src/activities/settings/SettingsActivity.cpp b/src/activities/settings/SettingsActivity.cpp
 index 61a9e5e..4695d2d 100644
 --- a/src/activities/settings/SettingsActivity.cpp
@@ -1870,14 +2028,15 @@ index 8a3a746..f6c7f07 100644
    renderer.setFadingFix(SETTINGS.fadingFix);
 diff --git a/src/util/BlePageTurner.cpp b/src/util/BlePageTurner.cpp
 new file mode 100644
-index 0000000..7574537
+index 0000000..a5dd57d
 --- /dev/null
 +++ b/src/util/BlePageTurner.cpp
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,117 @@
 +#include "util/BlePageTurner.h"
 +
 +#include <BleKeyboardHost.h>
 +#include <Logging.h>
++#include <WiFi.h>
 +
 +#include "CrossPointSettings.h"
 +
@@ -1916,10 +2075,27 @@ index 0000000..7574537
 +  const bool running = BleKbd.isRunning();
 +
 +  if (want && !running) {
++    // One radio and one small heap: the WiFi driver and the NimBLE host do
++    // not fit together, so BLE only starts once WiFi is fully down.
++    if (WiFi.getMode() != WIFI_MODE_NULL) {
++      WiFi.disconnect(true);
++      WiFi.mode(WIFI_OFF);
++      delay(100);
++    }
++    // NimBLE needs its pools as contiguous blocks. Below this the init either
++    // fails or leaves the heap too thin for the next screen to render.
++    if (ESP.getMaxAllocHeap() < 40000) {
++      LOG_ERR("BLEPG", "Heap too fragmented for BLE (maxAlloc %lu); close the reader first",
++              static_cast<unsigned long>(ESP.getMaxAllocHeap()));
++      SETTINGS.bleEnabled = 0;
++      SETTINGS.saveToFile();
++      return;
++    }
 +    // hostName is what the page turner shows while pairing.
 +    if (!BleKbd.begin("CrossPoint")) {
 +      LOG_ERR("BLEPG", "BLE init failed; turning the setting back off");
 +      SETTINGS.bleEnabled = 0;
++      SETTINGS.saveToFile();
 +    }
 +    return;
 +  }
@@ -1960,13 +2136,25 @@ index 0000000..7574537
 +bool isRunning() { return BleKbd.isRunning(); }
 +bool isConnected() { return BleKbd.isConnected(); }
 +
++void suspendForWifi() {
++  if (BleKbd.isRunning()) {
++    BleKbd.end();
++  }
++  nextLatched = prevLatched = false;
++  if (SETTINGS.bleEnabled) {
++    SETTINGS.bleEnabled = 0;
++    SETTINGS.saveToFile();
++    LOG_INF("BLEPG", "Bluetooth off: a WiFi session needs the radio and the heap");
++  }
++}
++
 +}  // namespace blepage
 diff --git a/src/util/BlePageTurner.h b/src/util/BlePageTurner.h
 new file mode 100644
-index 0000000..377e556
+index 0000000..94e73da
 --- /dev/null
 +++ b/src/util/BlePageTurner.h
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,47 @@
 +#pragma once
 +
 +#include <cstdint>
@@ -2004,6 +2192,14 @@ index 0000000..377e556
 +
 +// True while a page turner is connected and delivering keys.
 +bool isConnected();
++
++// Call before anything brings up the WiFi stack. The C3 heap cannot hold the
++// NimBLE host and the WiFi driver at once: with BLE resident, a WiFi init
++// leaves ~9KB free and the next allocation aborts (measured on device).
++// Ends the BLE stack and turns the setting off persistently, so the radio
++// stays with WiFi until the user picks Bluetooth again — which tears WiFi
++// down in service() the same way.
++void suspendForWifi();
 +
 +}  // namespace blepage
 diff --git a/src/util/CanChi.cpp b/src/util/CanChi.cpp

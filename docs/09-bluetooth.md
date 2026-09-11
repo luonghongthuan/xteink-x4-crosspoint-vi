@@ -72,13 +72,25 @@ Cách nhận biết khi mua:
 
 ---
 
-## Bluetooth và WiFi không chạy cùng lúc
+## Bluetooth và WiFi loại trừ nhau — firmware tự enforcing
 
-ESP32-C3 chỉ có **một bộ radio 2.4GHz** dùng chung cho cả WiFi lẫn Bluetooth.
+ESP32-C3 chỉ có **một bộ radio 2.4GHz** dùng chung, và heap chỉ 234KB. Đo trên máy
+thật: bật Bluetooth khi stack WiFi còn thường trực làm heap tụt từ 43KB xuống
+**9KB**, và lần cấp phát kế tiếp — kể cả chỉ để vẽ màn hình kết quả — gọi `abort()`
+và máy khởi động lại.
 
-Thực tế khi dùng: bật Bluetooth trong lúc đang tải sách qua WiFi thì cả hai đều chậm hoặc đứt. Nên tắt Bluetooth khi cần WiFi, và ngược lại.
+Nên bản vá không để hai thứ cùng sống:
 
-Đây cũng là lý do nên **tắt Bluetooth khi không dùng**: vừa đỡ tốn pin, vừa trả lại vài chục KB heap cho việc giải nén sách.
+- **Bật Bluetooth** → firmware tắt WiFi trước (`WiFi.disconnect(true)` + `WIFI_OFF`),
+  rồi mới khởi động NimBLE. Nếu heap đang phân mảnh (vừa đọc sách xong, cache font
+  còn giữ), nó từ chối bật và ghi log lý do.
+- **Mở bất kỳ màn hình nào dùng WiFi** (WiFi, chuyển file, OPDS, KOReader, OTA, tải
+  font, đồng bộ giờ) → firmware gọi `blepage::suspendForWifi()`: tắt NimBLE, trả heap
+  về, và **tắt luôn toggle Bluetooth** (ghi xuống thẻ).
+
+Hệ quả cần biết: sau một phiên WiFi, Bluetooth ở trạng thái tắt. Muốn dùng remote
+lại thì bật lại toggle — máy sẽ tắt WiFi phiên đó. Không dùng được cả hai cùng lúc,
+bao giờ cũng vậy, trên phần cứng này.
 
 ---
 
