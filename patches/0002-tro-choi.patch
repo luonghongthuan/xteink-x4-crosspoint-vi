@@ -1,0 +1,2875 @@
+diff --git a/lib/Chess/ChessEngine.cpp b/lib/Chess/ChessEngine.cpp
+new file mode 100644
+index 0000000..e92590d
+--- /dev/null
++++ b/lib/Chess/ChessEngine.cpp
+@@ -0,0 +1,686 @@
++#include "ChessEngine.h"
++
++namespace chess {
++
++namespace {
++
++constexpr int fileOf(int s) { return s & 7; }
++constexpr int rankOf(int s) { return s >> 3; }
++constexpr bool onBoard(int f, int r) { return f >= 0 && f < 8 && r >= 0 && r < 8; }
++constexpr int absPiece(int8_t p) { return p < 0 ? -p : p; }
++
++constexpr int8_t KNIGHT_DF[8] = {1, 2, 2, 1, -1, -2, -2, -1};
++constexpr int8_t KNIGHT_DR[8] = {2, 1, -1, -2, -2, -1, 1, 2};
++constexpr int8_t KING_DF[8] = {1, 1, 1, 0, 0, -1, -1, -1};
++constexpr int8_t KING_DR[8] = {1, 0, -1, 1, -1, 1, 0, -1};
++// First four entries are the rook rays, last four the bishop rays.
++constexpr int8_t RAY_DF[8] = {1, -1, 0, 0, 1, 1, -1, -1};
++constexpr int8_t RAY_DR[8] = {0, 0, 1, -1, 1, -1, 1, -1};
++
++constexpr int PIECE_VALUE[7] = {0, 100, 320, 330, 500, 900, 0};
++constexpr int MATE_SCORE = 30000;
++constexpr int QUIESCENCE_PLIES = 4;
++
++void push(Move* out, int& n, int from, int to, uint8_t flags, uint8_t promo = EMPTY) {
++  if (n >= MAX_MOVES) return;
++  out[n].from = static_cast<uint8_t>(from);
++  out[n].to = static_cast<uint8_t>(to);
++  out[n].promo = promo;
++  out[n].flags = flags;
++  n++;
++}
++
++void pushPawnMove(Move* out, int& n, int from, int to, uint8_t flags) {
++  const int r = rankOf(to);
++  if (r == 7 || r == 0) {
++    push(out, n, from, to, flags, QUEEN);
++    push(out, n, from, to, flags, ROOK);
++    push(out, n, from, to, flags, BISHOP);
++    push(out, n, from, to, flags, KNIGHT);
++  } else {
++    push(out, n, from, to, flags);
++  }
++}
++
++}  // namespace
++
++void Board::reset() { setFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); }
++
++bool Board::setFen(const char* fen) {
++  for (int i = 0; i < 64; i++) sq[i] = EMPTY;
++  whiteToMove = true;
++  castling = 0;
++  epSquare = -1;
++  halfmove = 0;
++  if (!fen) return false;
++
++  int f = 0, r = 7;
++  const char* p = fen;
++  for (; *p && *p != ' '; p++) {
++    const char c = *p;
++    if (c == '/') {
++      f = 0;
++      r--;
++      continue;
++    }
++    if (c >= '1' && c <= '8') {
++      f += c - '0';
++      continue;
++    }
++    int8_t piece = EMPTY;
++    switch (c | 0x20) {
++      case 'p':
++        piece = PAWN;
++        break;
++      case 'n':
++        piece = KNIGHT;
++        break;
++      case 'b':
++        piece = BISHOP;
++        break;
++      case 'r':
++        piece = ROOK;
++        break;
++      case 'q':
++        piece = QUEEN;
++        break;
++      case 'k':
++        piece = KING;
++        break;
++      default:
++        return false;
++    }
++    if (!onBoard(f, r)) return false;
++    sq[r * 8 + f] = (c >= 'a') ? static_cast<int8_t>(-piece) : piece;
++    f++;
++  }
++  if (*p == ' ') p++;
++  if (*p == 'b') whiteToMove = false;
++  while (*p && *p != ' ') p++;
++  if (*p == ' ') p++;
++  for (; *p && *p != ' '; p++) {
++    if (*p == 'K') castling |= WHITE_KINGSIDE;
++    if (*p == 'Q') castling |= WHITE_QUEENSIDE;
++    if (*p == 'k') castling |= BLACK_KINGSIDE;
++    if (*p == 'q') castling |= BLACK_QUEENSIDE;
++  }
++  if (*p == ' ') p++;
++  if (p[0] >= 'a' && p[0] <= 'h' && p[1] >= '1' && p[1] <= '8') {
++    epSquare = static_cast<int8_t>((p[1] - '1') * 8 + (p[0] - 'a'));
++  }
++  return kingSquare(true) >= 0 && kingSquare(false) >= 0;
++}
++
++int Board::kingSquare(const bool white) const {
++  const int8_t target = white ? KING : static_cast<int8_t>(-KING);
++  for (int i = 0; i < 64; i++) {
++    if (sq[i] == target) return i;
++  }
++  return -1;
++}
++
++bool Board::isAttacked(const int square, const bool byWhite) const {
++  if (square < 0) return false;
++  const int f = fileOf(square), r = rankOf(square);
++  const int sign = byWhite ? 1 : -1;
++
++  // A white pawn attacks diagonally upward, so it sits one rank below its target.
++  const int pr = r - sign;
++  if (pr >= 0 && pr < 8) {
++    if (f > 0 && sq[pr * 8 + f - 1] == sign * PAWN) return true;
++    if (f < 7 && sq[pr * 8 + f + 1] == sign * PAWN) return true;
++  }
++  for (int i = 0; i < 8; i++) {
++    const int nf = f + KNIGHT_DF[i], nr = r + KNIGHT_DR[i];
++    if (onBoard(nf, nr) && sq[nr * 8 + nf] == sign * KNIGHT) return true;
++    const int kf = f + KING_DF[i], kr = r + KING_DR[i];
++    if (onBoard(kf, kr) && sq[kr * 8 + kf] == sign * KING) return true;
++  }
++  for (int d = 0; d < 8; d++) {
++    const int8_t slider = d < 4 ? ROOK : BISHOP;
++    int cf = f + RAY_DF[d], cr = r + RAY_DR[d];
++    while (onBoard(cf, cr)) {
++      const int8_t p = sq[cr * 8 + cf];
++      if (p != EMPTY) {
++        if (p == sign * slider || p == sign * QUEEN) return true;
++        break;
++      }
++      cf += RAY_DF[d];
++      cr += RAY_DR[d];
++    }
++  }
++  return false;
++}
++
++int Board::generatePseudo(Move* out, const bool capturesOnly) const {
++  int n = 0;
++  const int sign = whiteToMove ? 1 : -1;
++
++  for (int s = 0; s < 64; s++) {
++    const int8_t p = sq[s];
++    if (p == EMPTY || (p > 0) != whiteToMove) continue;
++    const int f = fileOf(s), r = rankOf(s);
++
++    switch (absPiece(p)) {
++      case PAWN: {
++        const int nr = r + sign;
++        if (nr < 0 || nr > 7) break;
++        if (!capturesOnly && sq[nr * 8 + f] == EMPTY) {
++          pushPawnMove(out, n, s, nr * 8 + f, F_NONE);
++          const int startRank = whiteToMove ? 1 : 6;
++          if (r == startRank && sq[(nr + sign) * 8 + f] == EMPTY) {
++            push(out, n, s, (nr + sign) * 8 + f, F_DOUBLE_PUSH);
++          }
++        }
++        for (int df = -1; df <= 1; df += 2) {
++          const int nf = f + df;
++          if (nf < 0 || nf > 7) continue;
++          const int to = nr * 8 + nf;
++          const int8_t target = sq[to];
++          if (target != EMPTY && (target > 0) != whiteToMove) {
++            pushPawnMove(out, n, s, to, F_CAPTURE);
++          } else if (to == epSquare && target == EMPTY) {
++            push(out, n, s, to, F_CAPTURE | F_EN_PASSANT);
++          }
++        }
++        break;
++      }
++      case KNIGHT:
++      case KING: {
++        const int8_t* df = absPiece(p) == KNIGHT ? KNIGHT_DF : KING_DF;
++        const int8_t* dr = absPiece(p) == KNIGHT ? KNIGHT_DR : KING_DR;
++        for (int i = 0; i < 8; i++) {
++          const int nf = f + df[i], nr = r + dr[i];
++          if (!onBoard(nf, nr)) continue;
++          const int8_t target = sq[nr * 8 + nf];
++          if (target == EMPTY) {
++            if (!capturesOnly) push(out, n, s, nr * 8 + nf, F_NONE);
++          } else if ((target > 0) != whiteToMove) {
++            push(out, n, s, nr * 8 + nf, F_CAPTURE);
++          }
++        }
++        break;
++      }
++      default: {
++        const int first = absPiece(p) == BISHOP ? 4 : 0;
++        const int last = absPiece(p) == ROOK ? 4 : 8;
++        for (int d = first; d < last; d++) {
++          int cf = f + RAY_DF[d], cr = r + RAY_DR[d];
++          while (onBoard(cf, cr)) {
++            const int8_t target = sq[cr * 8 + cf];
++            if (target == EMPTY) {
++              if (!capturesOnly) push(out, n, s, cr * 8 + cf, F_NONE);
++            } else {
++              if ((target > 0) != whiteToMove) push(out, n, s, cr * 8 + cf, F_CAPTURE);
++              break;
++            }
++            cf += RAY_DF[d];
++            cr += RAY_DR[d];
++          }
++        }
++        break;
++      }
++    }
++  }
++
++  if (capturesOnly) return n;
++
++  // Castling: the king may not start in, pass through, or land on an attacked square.
++  const int home = whiteToMove ? 4 : 60;
++  if (sq[home] != sign * KING) return n;
++  const uint8_t kingside = whiteToMove ? WHITE_KINGSIDE : BLACK_KINGSIDE;
++  const uint8_t queenside = whiteToMove ? WHITE_QUEENSIDE : BLACK_QUEENSIDE;
++  const bool enemy = !whiteToMove;
++  if ((castling & kingside) && sq[home + 1] == EMPTY && sq[home + 2] == EMPTY && sq[home + 3] == sign * ROOK &&
++      !isAttacked(home, enemy) && !isAttacked(home + 1, enemy) && !isAttacked(home + 2, enemy)) {
++    push(out, n, home, home + 2, F_CASTLE);
++  }
++  if ((castling & queenside) && sq[home - 1] == EMPTY && sq[home - 2] == EMPTY && sq[home - 3] == EMPTY &&
++      sq[home - 4] == sign * ROOK && !isAttacked(home, enemy) && !isAttacked(home - 1, enemy) &&
++      !isAttacked(home - 2, enemy)) {
++    push(out, n, home, home - 2, F_CASTLE);
++  }
++  return n;
++}
++
++void Board::make(const Move& m, Undo& u) {
++  u.captured = sq[m.to];
++  u.castling = castling;
++  u.epSquare = epSquare;
++  u.halfmove = halfmove;
++
++  const int8_t piece = sq[m.from];
++  const int sign = piece > 0 ? 1 : -1;
++
++  halfmove = (absPiece(piece) == PAWN || (m.flags & F_CAPTURE)) ? 0 : static_cast<uint8_t>(halfmove + 1);
++
++  sq[m.to] = m.promo ? static_cast<int8_t>(sign * m.promo) : piece;
++  sq[m.from] = EMPTY;
++
++  if (m.flags & F_EN_PASSANT) sq[m.to - sign * 8] = EMPTY;
++  if (m.flags & F_CASTLE) {
++    if (m.to > m.from) {
++      sq[m.from + 1] = sq[m.from + 3];
++      sq[m.from + 3] = EMPTY;
++    } else {
++      sq[m.from - 1] = sq[m.from - 4];
++      sq[m.from - 4] = EMPTY;
++    }
++  }
++
++  epSquare = (m.flags & F_DOUBLE_PUSH) ? static_cast<int8_t>(m.from + sign * 8) : static_cast<int8_t>(-1);
++
++  // Any move that starts or ends on a king or rook home square ends that right.
++  auto clear = [&](int s) {
++    switch (s) {
++      case 4:
++        castling &= static_cast<uint8_t>(~(WHITE_KINGSIDE | WHITE_QUEENSIDE));
++        break;
++      case 0:
++        castling &= static_cast<uint8_t>(~WHITE_QUEENSIDE);
++        break;
++      case 7:
++        castling &= static_cast<uint8_t>(~WHITE_KINGSIDE);
++        break;
++      case 60:
++        castling &= static_cast<uint8_t>(~(BLACK_KINGSIDE | BLACK_QUEENSIDE));
++        break;
++      case 56:
++        castling &= static_cast<uint8_t>(~BLACK_QUEENSIDE);
++        break;
++      case 63:
++        castling &= static_cast<uint8_t>(~BLACK_KINGSIDE);
++        break;
++      default:
++        break;
++    }
++  };
++  clear(m.from);
++  clear(m.to);
++
++  whiteToMove = !whiteToMove;
++}
++
++void Board::unmake(const Move& m, const Undo& u) {
++  whiteToMove = !whiteToMove;
++  const int sign = whiteToMove ? 1 : -1;
++
++  sq[m.from] = m.promo ? static_cast<int8_t>(sign * PAWN) : sq[m.to];
++  sq[m.to] = u.captured;
++
++  if (m.flags & F_EN_PASSANT) sq[m.to - sign * 8] = static_cast<int8_t>(-sign * PAWN);
++  if (m.flags & F_CASTLE) {
++    if (m.to > m.from) {
++      sq[m.from + 3] = sq[m.from + 1];
++      sq[m.from + 1] = EMPTY;
++    } else {
++      sq[m.from - 4] = sq[m.from - 1];
++      sq[m.from - 1] = EMPTY;
++    }
++  }
++  castling = u.castling;
++  epSquare = u.epSquare;
++  halfmove = u.halfmove;
++}
++
++int Board::generateLegal(Move* out) {
++  // Filter in place: `out` already holds MAX_MOVES entries, so no second buffer.
++  const int n = generatePseudo(out, false);
++  const bool mover = whiteToMove;
++  int legal = 0;
++  for (int i = 0; i < n; i++) {
++    const Move m = out[i];
++    Undo u;
++    make(m, u);
++    const bool ok = !isAttacked(kingSquare(mover), !mover);
++    unmake(m, u);
++    if (ok) out[legal++] = m;
++  }
++  return legal;
++}
++
++bool Board::hasLegalMove(Move* scratch) {
++  const int n = generatePseudo(scratch, false);
++  const bool mover = whiteToMove;
++  for (int i = 0; i < n; i++) {
++    Undo u;
++    make(scratch[i], u);
++    const bool ok = !isAttacked(kingSquare(mover), !mover);
++    unmake(scratch[i], u);
++    if (ok) return true;
++  }
++  return false;
++}
++
++uint64_t Board::perft(const int depth, Move* pool, const int poolSize) {
++  if (depth == 0) return 1;
++  if (poolSize < MAX_MOVES) return 0;
++  const int n = generatePseudo(pool, false);
++  const bool mover = whiteToMove;
++  uint64_t total = 0;
++  for (int i = 0; i < n; i++) {
++    Undo u;
++    make(pool[i], u);
++    if (!isAttacked(kingSquare(mover), !mover)) total += perft(depth - 1, pool + n, poolSize - n);
++    unmake(pool[i], u);
++  }
++  return total;
++}
++
++bool insufficientMaterial(const Board& board) {
++  int minors = 0;
++  for (int s = 0; s < 64; s++) {
++    switch (absPiece(board.sq[s])) {
++      case EMPTY:
++      case KING:
++        break;
++      case KNIGHT:
++      case BISHOP:
++        if (++minors > 1) return false;
++        break;
++      default:
++        return false;  // any pawn, rook or queen can still mate
++    }
++  }
++  return true;
++}
++
++uint64_t positionKey(const Board& board) {
++  uint64_t h = 1469598103934665603ull;  // FNV-1a
++  auto mix = [&](uint8_t v) {
++    h ^= v;
++    h *= 1099511628211ull;
++  };
++  for (int s = 0; s < 64; s++) mix(static_cast<uint8_t>(board.sq[s] + 8));
++  mix(board.whiteToMove ? 1 : 0);
++  mix(board.castling);
++  mix(static_cast<uint8_t>(board.epSquare + 1));
++  return h;
++}
++
++namespace {
++
++constexpr int PASSED_BONUS[8] = {0, 5, 10, 20, 40, 70, 120, 0};
++
++// 0 (centre four squares) .. 6 (corner)
++int centreDistance(const int s) {
++  const int f = fileOf(s), r = rankOf(s);
++  return (f < 4 ? 3 - f : f - 4) + (r < 4 ? 3 - r : r - 4);
++}
++
++}  // namespace
++
++int evaluate(const Board& board) {
++  // Pass 1: material phase and pawn structure.
++  int nonPawn = 0;
++  int whiteMinRank[8], blackMaxRank[8], whiteCount[8] = {}, blackCount[8] = {};
++  for (int f = 0; f < 8; f++) {
++    whiteMinRank[f] = 8;
++    blackMaxRank[f] = -1;
++  }
++  int bishops[2] = {0, 0};
++  int kingSq[2] = {-1, -1};
++  for (int s = 0; s < 64; s++) {
++    const int8_t p = board.sq[s];
++    if (p == EMPTY) continue;
++    const int type = absPiece(p);
++    const int f = fileOf(s), r = rankOf(s);
++    if (type == PAWN) {
++      if (p > 0) {
++        whiteCount[f]++;
++        if (r < whiteMinRank[f]) whiteMinRank[f] = r;
++      } else {
++        blackCount[f]++;
++        if (r > blackMaxRank[f]) blackMaxRank[f] = r;
++      }
++    } else if (type == KING) {
++      kingSq[p > 0 ? 0 : 1] = s;
++    } else {
++      nonPawn += PIECE_VALUE[type];
++      if (type == BISHOP) bishops[p > 0 ? 0 : 1]++;
++    }
++  }
++  // 0 = full middlegame, 256 = bare endgame.
++  int endgame = (5200 - nonPawn) * 256 / 4000;
++  if (endgame < 0) endgame = 0;
++  if (endgame > 256) endgame = 256;
++
++  // Pass 2: piece scores, white minus black.
++  int score = 0;
++  int material[2] = {0, 0};
++  for (int s = 0; s < 64; s++) {
++    const int8_t p = board.sq[s];
++    if (p == EMPTY) continue;
++    const bool white = p > 0;
++    const int type = absPiece(p);
++    const int f = fileOf(s);
++    const int r = white ? rankOf(s) : 7 - rankOf(s);  // rank as seen by the piece's owner
++    const int centre = 6 - centreDistance(s);
++
++    int v = PIECE_VALUE[type];
++    switch (type) {
++      case PAWN: {
++        v += r * (5 + endgame * 7 / 256) + ((f == 3 || f == 4) ? 8 : 0);
++        bool passed = true;
++        for (int ff = f - 1; ff <= f + 1 && passed; ff++) {
++          if (ff < 0 || ff > 7) continue;
++          passed = white ? blackMaxRank[ff] <= rankOf(s) : whiteMinRank[ff] >= rankOf(s);
++        }
++        if (passed) v += PASSED_BONUS[r];
++        if ((white ? whiteCount[f] : blackCount[f]) > 1) v -= 10;
++        break;
++      }
++      case KNIGHT:
++        v += centre * 6;
++        break;
++      case BISHOP:
++        v += centre * 4;
++        break;
++      case ROOK:
++        if (r == 6) v += 15;
++        if ((white ? whiteCount[f] : blackCount[f]) == 0) v += 12;
++        break;
++      case QUEEN:
++        v += centre * 2;
++        break;
++      case KING: {
++        // Middlegame: stay home behind pawns. Endgame: walk to the centre.
++        int shield = 0;
++        const int front = rankOf(s) + (white ? 1 : -1);
++        if (front >= 0 && front < 8) {
++          for (int ff = f - 1; ff <= f + 1; ff++) {
++            if (ff >= 0 && ff < 8 && board.sq[front * 8 + ff] == (white ? PAWN : -PAWN)) shield++;
++          }
++        }
++        const int mg = (r == 0 ? 12 : 0) - centre * 6 + shield * 8;
++        const int eg = centre * 8;
++        v += (mg * (256 - endgame) + eg * endgame) / 256;
++        break;
++      }
++      default:
++        break;
++    }
++    material[white ? 0 : 1] += PIECE_VALUE[type];
++    score += white ? v : -v;
++  }
++  if (bishops[0] >= 2) score += 30;
++  if (bishops[1] >= 2) score -= 30;
++
++  // Mop-up: with a winning edge in the endgame, drive the enemy king to the rim and
++  // bring our own king close. Without this a shallow search shuffles instead of mating.
++  if (endgame > 128 && kingSq[0] >= 0 && kingSq[1] >= 0) {
++    const int edge = material[0] - material[1];
++    if (edge > 300 || edge < -300) {
++      const int loser = edge > 0 ? kingSq[1] : kingSq[0];
++      const int df = fileOf(kingSq[0]) - fileOf(kingSq[1]);
++      const int dr = rankOf(kingSq[0]) - rankOf(kingSq[1]);
++      const int kingGap = (df < 0 ? -df : df) + (dr < 0 ? -dr : dr);
++      const int bonus = centreDistance(loser) * 12 + (14 - kingGap) * 4;
++      score += edge > 0 ? bonus : -bonus;
++    }
++  }
++  return board.whiteToMove ? score : -score;
++}
++
++namespace {
++
++// Winning captures first (most valuable victim, least valuable attacker), then the
++// quiet moves that refuted a sibling position at this ply.
++int orderScore(const Board& b, const Move& m, const Move* killers) {
++  int s = 0;
++  if (m.flags & F_CAPTURE) {
++    const int victim = (m.flags & F_EN_PASSANT) ? PAWN : absPiece(b.sq[m.to]);
++    s += 2000 + PIECE_VALUE[victim] - PIECE_VALUE[absPiece(b.sq[m.from])] / 10;
++  } else if (killers) {
++    if (m == killers[0]) s += 900;
++    if (m == killers[1]) s += 800;
++  }
++  if (m.promo) s += PIECE_VALUE[m.promo];
++  return s;
++}
++
++void sortMoves(const Board& b, Move* moves, const int n, const Move* killers) {
++  for (int i = 1; i < n; i++) {
++    const Move key = moves[i];
++    const int keyScore = orderScore(b, key, killers);
++    int j = i - 1;
++    while (j >= 0 && orderScore(b, moves[j], killers) < keyScore) {
++      moves[j + 1] = moves[j];
++      j--;
++    }
++    moves[j + 1] = key;
++  }
++}
++
++void tick(SearchContext& ctx) {
++  if ((++ctx.nodes & 0x3FF) != 0) return;
++  if (ctx.yieldFn && (ctx.nodes & 0x7FF) == 0) ctx.yieldFn();
++  if (ctx.limitMs && ctx.nowMs && ctx.nowMs() - ctx.startMs >= ctx.limitMs) ctx.aborted = true;
++}
++
++int quiesce(Board& b, int alpha, const int beta, const int pliesLeft, Move* pool, const int poolSize,
++            SearchContext& ctx) {
++  tick(ctx);
++  if (ctx.aborted) return 0;
++  const int standPat = evaluate(b);
++  if (standPat >= beta) return beta;
++  if (standPat > alpha) alpha = standPat;
++  if (pliesLeft == 0 || poolSize < MAX_MOVES) return alpha;
++
++  const int n = b.generatePseudo(pool, true);
++  sortMoves(b, pool, n, nullptr);
++  const bool mover = b.whiteToMove;
++  for (int i = 0; i < n; i++) {
++    Undo u;
++    b.make(pool[i], u);
++    int score = alpha;
++    const bool legal = !b.isAttacked(b.kingSquare(mover), !mover);
++    if (legal) score = -quiesce(b, -beta, -alpha, pliesLeft - 1, pool + n, poolSize - n, ctx);
++    b.unmake(pool[i], u);
++    if (!legal) continue;
++    if (score >= beta) return beta;
++    if (score > alpha) alpha = score;
++  }
++  return alpha;
++}
++
++int negamax(Board& b, int depth, int alpha, const int beta, const int ply, Move* pool, const int poolSize,
++            SearchContext& ctx) {
++  if (ctx.aborted) return 0;
++  if (b.halfmove >= 100) return 0;
++  if (ply >= MAX_PLY - 1 || poolSize < MAX_MOVES) return evaluate(b);
++
++  // A check is forcing: look one ply further rather than stand on the horizon.
++  const bool checked = b.inCheck();
++  if (checked) depth++;
++  if (depth <= 0) return quiesce(b, alpha, beta, QUIESCENCE_PLIES, pool, poolSize, ctx);
++  tick(ctx);
++
++  const int n = b.generatePseudo(pool, false);
++  sortMoves(b, pool, n, ctx.killers[ply]);
++  const bool mover = b.whiteToMove;
++  bool anyLegal = false;
++  for (int i = 0; i < n; i++) {
++    const Move m = pool[i];
++    Undo u;
++    b.make(m, u);
++    const bool legal = !b.isAttacked(b.kingSquare(mover), !mover);
++    int score = 0;
++    if (legal) score = -negamax(b, depth - 1, -beta, -alpha, ply + 1, pool + n, poolSize - n, ctx);
++    b.unmake(m, u);
++    if (!legal) continue;
++    anyLegal = true;
++    if (ctx.aborted) return 0;
++    if (score >= beta) {
++      if (!(m.flags & F_CAPTURE) && !(m == ctx.killers[ply][0])) {
++        ctx.killers[ply][1] = ctx.killers[ply][0];
++        ctx.killers[ply][0] = m;
++      }
++      return beta;
++    }
++    if (score > alpha) alpha = score;
++  }
++  if (!anyLegal) return checked ? -MATE_SCORE + ply : 0;  // nearer mates score higher
++  return alpha;
++}
++
++}  // namespace
++
++bool findBestMove(Board& board, const int maxDepth, const uint32_t timeLimitMs, const int noise, uint32_t seed,
++                  SearchContext& ctx, Move& best) {
++  if (!ctx.pool || ctx.poolSize < MAX_MOVES * 2) return false;
++  ctx.nodes = 0;
++  ctx.depthReached = 0;
++  ctx.aborted = false;
++  ctx.limitMs = timeLimitMs;
++  ctx.startMs = ctx.nowMs ? ctx.nowMs() : 0;
++  for (auto& k : ctx.killers) k[0] = k[1] = Move{};
++
++  Move* root = ctx.pool;
++  const int n = board.generateLegal(root);
++  if (n == 0) return false;
++  sortMoves(board, root, n, nullptr);
++  best = root[0];
++  if (n == 1) return true;
++
++  Move* pool = ctx.pool + n;
++  const int poolSize = ctx.poolSize - n;
++  constexpr int INF = MATE_SCORE * 2;
++
++  for (int depth = 1; depth <= maxDepth; depth++) {
++    int alpha = -INF;
++    int bestIndex = 0;
++    int completed = 0;
++    for (int i = 0; i < n; i++) {
++      Undo u;
++      board.make(root[i], u);
++      // Noise needs exact scores for every move, so it searches a full window.
++      int score = -negamax(board, depth - 1, -INF, noise > 0 ? INF : -alpha, 1, pool, poolSize, ctx);
++      board.unmake(root[i], u);
++      if (ctx.aborted) break;
++      completed++;
++
++      if (noise > 0 && score > -MATE_SCORE / 2 && score < MATE_SCORE / 2) {
++        seed = seed * 1664525u + 1013904223u;
++        score += static_cast<int>((seed >> 16) % static_cast<uint32_t>(2 * noise + 1)) - noise;
++      }
++      if (score > alpha) {
++        alpha = score;
++        bestIndex = i;
++      }
++    }
++    // The previous best is searched first, so even a partial pass can only improve on it.
++    if (completed > 0) {
++      best = root[bestIndex];
++      const Move front = root[bestIndex];
++      for (int i = bestIndex; i > 0; i--) root[i] = root[i - 1];
++      root[0] = front;
++    }
++    if (ctx.aborted) break;
++    ctx.depthReached = depth;
++    if (alpha > MATE_SCORE / 2) break;  // a forced mate needs no deeper look
++  }
++  return true;
++}
++
++}  // namespace chess
+diff --git a/lib/Chess/ChessEngine.h b/lib/Chess/ChessEngine.h
+new file mode 100644
+index 0000000..0df6094
+--- /dev/null
++++ b/lib/Chess/ChessEngine.h
+@@ -0,0 +1,101 @@
++#pragma once
++
++#include <cstdint>
++
++// Small, allocation-free chess core: legal move generation, make/unmake and a
++// fixed-depth alpha-beta search. No Arduino or HAL dependency, so the same
++// translation unit builds natively for the perft tests in test/chess_native.
++namespace chess {
++
++enum PieceType : int8_t { EMPTY = 0, PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6 };
++
++enum MoveFlag : uint8_t { F_NONE = 0, F_CAPTURE = 1, F_EN_PASSANT = 2, F_CASTLE = 4, F_DOUBLE_PUSH = 8 };
++
++enum CastleRight : uint8_t { WHITE_KINGSIDE = 1, WHITE_QUEENSIDE = 2, BLACK_KINGSIDE = 4, BLACK_QUEENSIDE = 8 };
++
++// Squares are rank * 8 + file, a1 = 0 .. h8 = 63.
++struct Move {
++  uint8_t from = 0;
++  uint8_t to = 0;
++  uint8_t promo = EMPTY;  // PieceType promoted to, EMPTY when not a promotion
++  uint8_t flags = F_NONE;
++
++  bool operator==(const Move& o) const { return from == o.from && to == o.to && promo == o.promo; }
++};
++
++struct Undo {
++  int8_t captured;
++  uint8_t castling;
++  int8_t epSquare;
++  uint8_t halfmove;
++};
++
++// No legal position has more moves than this (the known maximum is 218).
++constexpr int MAX_MOVES = 220;
++
++class Board {
++ public:
++  int8_t sq[64];  // > 0 white, < 0 black, magnitude is the PieceType
++  bool whiteToMove;
++  uint8_t castling;
++  int8_t epSquare;  // square a pawn may capture onto en passant, -1 when none
++  uint8_t halfmove;
++
++  Board() { reset(); }
++
++  void reset();
++  // Accepts the first four FEN fields; the move counters are optional.
++  bool setFen(const char* fen);
++
++  // `out` must hold MAX_MOVES entries. Returns the number written.
++  int generateLegal(Move* out);
++  int generatePseudo(Move* out, bool capturesOnly) const;
++
++  void make(const Move& m, Undo& u);
++  void unmake(const Move& m, const Undo& u);
++
++  bool isAttacked(int square, bool byWhite) const;
++  bool inCheck() const { return isAttacked(kingSquare(whiteToMove), !whiteToMove); }
++  int kingSquare(bool white) const;
++  // `scratch` must hold MAX_MOVES entries.
++  bool hasLegalMove(Move* scratch);
++
++  // Leaf-node count, used only to validate move generation against known values.
++  uint64_t perft(int depth, Move* pool, int poolSize);
++};
++
++// Scratch space for the search, owned by the caller so an embedded host can
++// allocate it once on entry instead of paying for it in .bss for the whole uptime.
++constexpr int MAX_PLY = 32;
++
++struct SearchContext {
++  Move* pool = nullptr;
++  int poolSize = 0;
++  void (*yieldFn)() = nullptr;    // called every few thousand nodes to feed the watchdog
++  uint32_t (*nowMs)() = nullptr;  // monotonic clock; without it the time limit is ignored
++  uint32_t nodes = 0;
++  int depthReached = 0;
++
++  // Search internals.
++  uint32_t startMs = 0;
++  uint32_t limitMs = 0;
++  bool aborted = false;
++  Move killers[MAX_PLY][2];
++};
++
++// Iterative deepening up to `maxDepth`, stopping early once `timeLimitMs` runs out
++// (0 = no limit). `noise` is a centipawn amplitude added to root scores, 0 for the
++// strongest play. Returns false when the side to move has no legal move.
++bool findBestMove(Board& board, int maxDepth, uint32_t timeLimitMs, int noise, uint32_t seed, SearchContext& ctx,
++                  Move& best);
++
++int evaluate(const Board& board);  // centipawns from the side to move's point of view
++
++// Neither side can force mate: bare kings, or a single minor piece against a bare king.
++bool insufficientMaterial(const Board& board);
++
++// Identifies a position for repetition counting: placement, side to move, castling
++// rights and en passant square, as the threefold rule defines "the same position".
++uint64_t positionKey(const Board& board);
++
++}  // namespace chess
+diff --git a/lib/Chess/ChessPieces.h b/lib/Chess/ChessPieces.h
+new file mode 100644
+index 0000000..082d555
+--- /dev/null
++++ b/lib/Chess/ChessPieces.h
+@@ -0,0 +1,365 @@
++#pragma once
++
++#include <cstdint>
++
++// 48x48 1-bit masks, row-major, MSB first, set bit = inside the mask.
++// HALO is the body grown by 2px (painted white so a piece reads on a shaded
++// square), OUTLINE is the 2px rim of the body. Indexed by PieceType - 1.
++// Generated by scripts/gen_chess_pieces.py - edit the shapes there.
++namespace chess_art {
++
++constexpr int PIECE_SIZE = 48;
++constexpr int PIECE_BYTES = 288;
++
++constexpr uint8_t HALO[6][PIECE_BYTES] = {
++    {
++        // PAWN
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x7F, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xC0, 0x00,
++        0x00, 0x03, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // KNIGHT
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x80, 0x00, 0x00,
++        0x00, 0x00, 0xFF, 0xC0, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xE0, 0x00, 0x00, 0x00, 0x03, 0xFF, 0xFC, 0x00, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xC0, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x7F, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xF0, 0x00,
++        0x01, 0xFF, 0xFF, 0xFF, 0xF8, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xF8, 0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xFC, 0x00,
++        0x07, 0xFF, 0xFF, 0xFF, 0xFC, 0x00, 0x07, 0xFF, 0xFF, 0xFF, 0xFC, 0x00, 0x07, 0xFF, 0xFF, 0xFF, 0xFC, 0x00,
++        0x07, 0xFF, 0xFF, 0xFF, 0xFC, 0x00, 0x07, 0xFF, 0xFF, 0xFF, 0xFC, 0x00, 0x07, 0xFF, 0xFF, 0xFF, 0xFC, 0x00,
++        0x03, 0xFF, 0xFF, 0xFF, 0xFC, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x0F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // BISHOP
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xF0, 0x00, 0x00,
++        0x00, 0x00, 0x0F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00,
++        0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00,
++        0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFF, 0x00, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xC0, 0x00,
++        0x00, 0x03, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x03, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // ROOK
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // QUEEN
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x07, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x0F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xC0, 0x00, 0x03, 0xFB, 0xFF, 0xFF, 0xCF, 0xE0,
++        0x07, 0xFF, 0xFF, 0xFF, 0xDF, 0xF0, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0,
++        0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0, 0x0F, 0xFD, 0xFF, 0xFF, 0xBF, 0xF0,
++        0x0F, 0xFD, 0xFF, 0xFF, 0xBF, 0xF0, 0x0F, 0xFD, 0xFF, 0xFF, 0xBF, 0xF0, 0x07, 0xFD, 0xFF, 0xFF, 0xFF, 0xE0,
++        0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0x7F, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x7F, 0xFF, 0xFF, 0xFE, 0x00, 0x00, 0x7F, 0xFF, 0xFF, 0xFE, 0x00,
++        0x00, 0x7F, 0xFF, 0xFF, 0xFE, 0x00, 0x00, 0x7F, 0xFF, 0xFF, 0xFE, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFE, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFE, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // KING
++        0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00,
++        0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++};
++
++constexpr uint8_t BODY[6][PIECE_BYTES] = {
++    {
++        // PAWN
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x07, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00,
++        0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00,
++        0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x1F, 0xF8, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x3F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFE, 0x00, 0x00,
++        0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFF, 0x00, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // KNIGHT
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x7F, 0x80, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xF0, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFC, 0x00, 0x00,
++        0x00, 0x03, 0xFF, 0xFE, 0x00, 0x00, 0x00, 0x07, 0xF3, 0xFF, 0x00, 0x00, 0x00, 0x0F, 0xE3, 0xFF, 0x80, 0x00,
++        0x00, 0x1F, 0xE3, 0xFF, 0x80, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x7F, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x7F, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xF0, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xF0, 0x00,
++        0x01, 0xFF, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x71, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x03, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // BISHOP
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xE0, 0x00, 0x00,
++        0x00, 0x00, 0x07, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x07, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x07, 0xE0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x07, 0x80, 0x00, 0x00, 0x00, 0x00, 0x07, 0x30, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x30, 0x00, 0x00,
++        0x00, 0x00, 0x1E, 0x78, 0x00, 0x00, 0x00, 0x00, 0x1C, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x3C, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x79, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x79, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFF, 0x00, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x00, 0x7F, 0xFE, 0x00, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // ROOK
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x87, 0xE1, 0xF0, 0x00,
++        0x00, 0x0F, 0x87, 0xE1, 0xF0, 0x00, 0x00, 0x0F, 0x87, 0xE1, 0xF0, 0x00, 0x00, 0x0F, 0x87, 0xE1, 0xF0, 0x00,
++        0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00,
++        0x00, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // QUEEN
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0xFF, 0x00, 0x00,
++        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xE0, 0xFF, 0xFF, 0x03, 0x80, 0x01, 0xF0, 0xFF, 0xFF, 0x07, 0xC0,
++        0x03, 0xF0, 0x7B, 0xDE, 0x0F, 0xC0, 0x03, 0xF0, 0x33, 0xCC, 0x0F, 0xC0, 0x03, 0xF0, 0x33, 0xCC, 0x0F, 0xC0,
++        0x01, 0xE0, 0x3B, 0xCC, 0x07, 0x80, 0x00, 0x40, 0x3F, 0xFE, 0x02, 0x00, 0x00, 0x20, 0x7F, 0xFE, 0x06, 0x00,
++        0x00, 0x20, 0x7F, 0xFE, 0x04, 0x00, 0x00, 0x30, 0x7F, 0xFF, 0x0C, 0x00, 0x00, 0x30, 0xFF, 0xFF, 0x0C, 0x00,
++        0x00, 0x38, 0xFF, 0xFF, 0x1C, 0x00, 0x00, 0x18, 0xFF, 0xFF, 0x1C, 0x00, 0x00, 0x1C, 0xFF, 0xFF, 0xB8, 0x00,
++        0x00, 0x1C, 0xFF, 0xFF, 0xB8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0xF8, 0x00,
++        0x00, 0x0F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF8, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // KING
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x63, 0xC6, 0x00, 0x00,
++        0x00, 0x00, 0xF0, 0x0F, 0x00, 0x00, 0x00, 0x01, 0xFC, 0x1F, 0xC0, 0x00, 0x00, 0x07, 0xFE, 0x7F, 0xE0, 0x00,
++        0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xF0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xF0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x03, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x03, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00,
++        0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++};
++
++constexpr uint8_t OUTLINE[6][PIECE_BYTES] = {
++    {
++        // PAWN
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x07, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x1E, 0x7C, 0x00, 0x00,
++        0x00, 0x00, 0x3C, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x78, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x70, 0x0E, 0x00, 0x00,
++        0x00, 0x00, 0x60, 0x06, 0x00, 0x00, 0x00, 0x00, 0x60, 0x06, 0x00, 0x00, 0x00, 0x00, 0x70, 0x0E, 0x00, 0x00,
++        0x00, 0x00, 0x78, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x38, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x18, 0x1C, 0x00, 0x00,
++        0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00, 0x01, 0xF8, 0x1F, 0x80, 0x00, 0x00, 0x01, 0xF8, 0x1F, 0x80, 0x00,
++        0x00, 0x01, 0xF0, 0x07, 0x80, 0x00, 0x00, 0x00, 0x30, 0x06, 0x00, 0x00, 0x00, 0x00, 0x30, 0x06, 0x00, 0x00,
++        0x00, 0x00, 0x70, 0x06, 0x00, 0x00, 0x00, 0x00, 0x70, 0x06, 0x00, 0x00, 0x00, 0x00, 0x60, 0x07, 0x00, 0x00,
++        0x00, 0x00, 0xE0, 0x07, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x03, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x03, 0x00, 0x00,
++        0x00, 0x01, 0xC0, 0x03, 0x80, 0x00, 0x00, 0x07, 0xC0, 0x03, 0xE0, 0x00, 0x00, 0x07, 0x80, 0x01, 0xE0, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00,
++        0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // KNIGHT
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x7F, 0x80, 0x00, 0x00, 0x00, 0x00, 0xF3, 0xF0, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFC, 0x00, 0x00,
++        0x00, 0x03, 0xFF, 0x3E, 0x00, 0x00, 0x00, 0x07, 0xF3, 0x0F, 0x00, 0x00, 0x00, 0x0F, 0x63, 0x07, 0x80, 0x00,
++        0x00, 0x1E, 0x63, 0x03, 0x80, 0x00, 0x00, 0x3C, 0x7F, 0x01, 0xC0, 0x00, 0x00, 0x78, 0x7F, 0x01, 0xE0, 0x00,
++        0x00, 0x70, 0x00, 0x00, 0xE0, 0x00, 0x00, 0xE0, 0x00, 0x00, 0x70, 0x00, 0x01, 0xE0, 0x00, 0x00, 0x70, 0x00,
++        0x01, 0xFF, 0x80, 0x00, 0x30, 0x00, 0x00, 0xFF, 0xC0, 0x00, 0x30, 0x00, 0x00, 0x71, 0xC0, 0x00, 0x30, 0x00,
++        0x00, 0x00, 0xC0, 0x00, 0x30, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x30, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x30, 0x00,
++        0x00, 0x01, 0xC0, 0x00, 0x30, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x30, 0x00, 0x00, 0x01, 0x80, 0x00, 0x30, 0x00,
++        0x00, 0x01, 0x80, 0x00, 0x30, 0x00, 0x00, 0x01, 0x80, 0x00, 0x30, 0x00, 0x00, 0x03, 0x80, 0x00, 0x30, 0x00,
++        0x00, 0x03, 0x80, 0x00, 0x70, 0x00, 0x00, 0x07, 0x00, 0x00, 0x70, 0x00, 0x00, 0x07, 0x00, 0x00, 0x60, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00,
++        0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // BISHOP
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xE0, 0x00, 0x00,
++        0x00, 0x00, 0x07, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x07, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x07, 0xE0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x07, 0x80, 0x00, 0x00, 0x00, 0x00, 0x07, 0x30, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x30, 0x00, 0x00,
++        0x00, 0x00, 0x1E, 0x78, 0x00, 0x00, 0x00, 0x00, 0x1C, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x3C, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x79, 0xEE, 0x00, 0x00, 0x00, 0x00, 0x79, 0xCF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x87, 0x00, 0x00,
++        0x00, 0x01, 0xFF, 0x83, 0x80, 0x00, 0x00, 0x01, 0xC0, 0x03, 0x80, 0x00, 0x00, 0x01, 0xC0, 0x03, 0x80, 0x00,
++        0x00, 0x00, 0xC0, 0x03, 0x80, 0x00, 0x00, 0x00, 0xC0, 0x03, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x03, 0x00, 0x00,
++        0x00, 0x00, 0xE0, 0x03, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x03, 0x00, 0x00, 0x00, 0x00, 0x60, 0x03, 0x00, 0x00,
++        0x00, 0x01, 0xE0, 0x03, 0x80, 0x00, 0x00, 0x01, 0xE0, 0x07, 0x80, 0x00, 0x00, 0x01, 0xE0, 0x07, 0x80, 0x00,
++        0x00, 0x00, 0x60, 0x06, 0x00, 0x00, 0x00, 0x07, 0xE0, 0x07, 0xE0, 0x00, 0x00, 0x07, 0xE0, 0x07, 0xE0, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00,
++        0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // ROOK
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x87, 0xE1, 0xF0, 0x00,
++        0x00, 0x0F, 0x87, 0xE1, 0xF0, 0x00, 0x00, 0x0D, 0x86, 0x61, 0xB0, 0x00, 0x00, 0x0D, 0x86, 0x61, 0xB0, 0x00,
++        0x00, 0x0D, 0xFE, 0x7F, 0xB0, 0x00, 0x00, 0x0D, 0xFE, 0x7F, 0xB0, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x30, 0x00,
++        0x00, 0x0F, 0x80, 0x01, 0xF0, 0x00, 0x00, 0x0F, 0x80, 0x01, 0xF0, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00,
++        0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00,
++        0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00,
++        0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00,
++        0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00,
++        0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x00,
++        0x00, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x07, 0x80, 0x01, 0xE0, 0x00, 0x00, 0x07, 0x80, 0x01, 0xE0, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00,
++        0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // QUEEN
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x7F, 0x00, 0x00,
++        0x00, 0x00, 0xF0, 0x07, 0x00, 0x00, 0x00, 0xE0, 0xFF, 0xFF, 0x03, 0x80, 0x01, 0xF0, 0xFF, 0xFF, 0x07, 0xC0,
++        0x03, 0xF0, 0x7B, 0xDE, 0x0F, 0xC0, 0x03, 0xF0, 0x33, 0xCC, 0x0F, 0xC0, 0x03, 0xF0, 0x33, 0xCC, 0x0F, 0xC0,
++        0x01, 0xE0, 0x3B, 0xCC, 0x07, 0x80, 0x00, 0x40, 0x3F, 0xFE, 0x02, 0x00, 0x00, 0x20, 0x7F, 0xFE, 0x06, 0x00,
++        0x00, 0x20, 0x70, 0x06, 0x04, 0x00, 0x00, 0x30, 0x60, 0x07, 0x0C, 0x00, 0x00, 0x30, 0xE0, 0x07, 0x0C, 0x00,
++        0x00, 0x38, 0xE0, 0x03, 0x1C, 0x00, 0x00, 0x18, 0xC0, 0x03, 0x1C, 0x00, 0x00, 0x1C, 0xC0, 0x03, 0xB8, 0x00,
++        0x00, 0x1C, 0xC0, 0x03, 0xB8, 0x00, 0x00, 0x1F, 0xC0, 0x01, 0xF8, 0x00, 0x00, 0x1F, 0xC0, 0x01, 0xF8, 0x00,
++        0x00, 0x0C, 0x00, 0x00, 0x38, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x38, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x30, 0x00,
++        0x00, 0x0C, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x70, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x70, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00,
++        0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++    {
++        // KING
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00,
++        0x00, 0x00, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00,
++        0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x63, 0xC6, 0x00, 0x00,
++        0x00, 0x00, 0xF0, 0x0F, 0x00, 0x00, 0x00, 0x01, 0xFC, 0x1F, 0xC0, 0x00, 0x00, 0x07, 0xFE, 0x7F, 0xE0, 0x00,
++        0x00, 0x0F, 0x8F, 0xF8, 0xF0, 0x00, 0x00, 0x0E, 0x07, 0xE0, 0x70, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x30, 0x00,
++        0x00, 0x0E, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x30, 0x00, 0x00, 0x06, 0x00, 0x00, 0x70, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x70, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x07, 0x00, 0x00, 0x60, 0x00, 0x00, 0x07, 0x00, 0x00, 0x60, 0x00,
++        0x00, 0x03, 0x00, 0x00, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x60, 0x00,
++        0x00, 0x03, 0x00, 0x00, 0x60, 0x00, 0x00, 0x07, 0x00, 0x00, 0x60, 0x00, 0x00, 0x07, 0x00, 0x00, 0x60, 0x00,
++        0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x06, 0x00, 0x00, 0x60, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00,
++        0x00, 0x3E, 0x00, 0x00, 0x7C, 0x00, 0x00, 0x30, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00,
++        0x00, 0x3F, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++    },
++};
++
++}  // namespace chess_art
+diff --git a/scripts/gen_chess_pieces.py b/scripts/gen_chess_pieces.py
+new file mode 100644
+index 0000000..ce19308
+--- /dev/null
++++ b/scripts/gen_chess_pieces.py
+@@ -0,0 +1,91 @@
++from PIL import Image, ImageDraw, ImageFilter
++S=48; K=4
++def canvas():
++    im=Image.new("L",(S*K,S*K),0); return im, ImageDraw.Draw(im)
++def P(d,pts): d.polygon([(x*K,y*K) for x,y in pts],fill=255)
++def E(d,box): d.ellipse([v*K for v in box],fill=255)
++def R(d,box): d.rectangle([v*K for v in box],fill=255)
++def base(d): R(d,(10,38,38,43)); R(d,(13,34,35,39))
++
++def pawn():
++    im,d=canvas(); base(d); E(d,(17,9,31,23)); P(d,[(19,21),(29,21),(33,35),(15,35)]); R(d,(15,22,33,25)); return im
++def rook():
++    im,d=canvas(); base(d); R(d,(15,16,33,35)); R(d,(12,8,36,17))
++    for x in (17,27): d.rectangle([x*K,8*K,(x+4)*K,12*K],fill=0)
++    return im
++def knight():
++    im,d=canvas(); base(d)
++    P(d,[(14,35),(16,24),(12,20),(11,15),(17,9),(22,6),(24,9),(31,12),(36,20),(36,35)])
++    P(d,[(11,15),(7,21),(10,24),(16,22)])
++    d.ellipse([19*K,13*K,22*K,16*K],fill=0)
++    return im
++def bishop():
++    im,d=canvas(); base(d); E(d,(21,4,27,10)); P(d,[(24,8),(33,22),(30,35),(18,35),(15,22)])
++    d.line([(26*K,12*K),(21*K,20*K)],fill=0,width=2*K)
++    R(d,(15,30,33,33)); return im
++def queen():
++    im,d=canvas(); base(d)
++    P(d,[(9,14),(15,26),(19,11),(24,25),(29,11),(33,26),(39,14),(35,35),(13,35)])
++    for cx,cy in ((9,13),(19,10),(29,10),(39,13),(24,8)): E(d,(cx-3,cy-3,cx+3,cy+3))
++    P(d,[(22,10),(26,10),(27,26),(21,26)]); return im
++def king():
++    im,d=canvas(); base(d)
++    R(d,(22,2,26,15)); R(d,(18,6,30,10))
++    P(d,[(12,18),(18,14),(24,18),(30,14),(36,18),(34,35),(14,35)])
++    return im
++
++def down(im): return im.resize((S,S),Image.LANCZOS).point(lambda v:255 if v>=128 else 0)
++order=["PAWN","KNIGHT","BISHOP","ROOK","QUEEN","KING"]
++src={"PAWN":pawn(),"KNIGHT":knight(),"BISHOP":bishop(),"ROOK":rook(),"QUEEN":queen(),"KING":king()}
++masks={}
++for n,im in src.items():
++    body=down(im)
++    halo=body.filter(ImageFilter.MaxFilter(5))
++    inner=body.filter(ImageFilter.MinFilter(5))
++    outline=Image.composite(Image.new("L",(S,S),0),body,inner)
++    masks[n]=(halo,body,outline)
++
++def pack(im):
++    px=im.load(); out=[]
++    for y in range(S):
++        for bx in range(0,S,8):
++            b=0
++            for i in range(8):
++                if px[bx+i,y]: b|=(0x80>>i)
++            out.append(b)
++    return out
++
++with open("ChessPieces.h","w") as f:
++    f.write("#pragma once\n\n#include <cstdint>\n\n")
++    f.write("// 48x48 1-bit masks, row-major, MSB first, set bit = inside the mask.\n")
++    f.write("// HALO is the body grown by 2px (painted white so a piece reads on a shaded\n")
++    f.write("// square), OUTLINE is the 2px rim of the body. Indexed by PieceType - 1.\n")
++    f.write("// Generated by tools/gen_chess_pieces.py - edit the shapes there.\n")
++    f.write("namespace chess_art {\n\nconstexpr int PIECE_SIZE = %d;\nconstexpr int PIECE_BYTES = %d;\n\n"%(S,S*S//8))
++    for kind,idx in (("HALO",0),("BODY",1),("OUTLINE",2)):
++        f.write("constexpr uint8_t %s[6][PIECE_BYTES] = {\n"%kind)
++        for n in order:
++            data=pack(masks[n][idx]); f.write("    {  // %s\n"%n)
++            for i in range(0,len(data),16): f.write("        "+", ".join("0x%02X"%b for b in data[i:i+16])+",\n")
++            f.write("    },\n")
++        f.write("};\n\n")
++    f.write("}  // namespace chess_art\n")
++print("ChessPieces.h:", sum(1 for _ in open("ChessPieces.h")), "dong")
++
++SQ=56; prev=Image.new("L",(6*SQ,4*SQ),255); pp=prev.load()
++def dark(x0,y0):
++    for y in range(0,SQ,2):
++        for x in range(0,SQ,2): pp[x0+x,y0+y]=0
++def blit(n,x0,y0,white):
++    halo,body,outline=masks[n]; off=(SQ-S)//2
++    for y in range(S):
++        for x in range(S):
++            X,Y=x0+off+x,y0+off+y
++            if halo.getpixel((x,y)): pp[X,Y]=255
++            if body.getpixel((x,y)): pp[X,Y]=255 if white else 0
++            if white and outline.getpixel((x,y)): pp[X,Y]=0
++for i,n in enumerate(order):
++    for row,(isdark,white) in enumerate([(False,True),(True,True),(False,False),(True,False)]):
++        if isdark: dark(i*SQ,row*SQ)
++        blit(n,i*SQ,row*SQ,white)
++prev.resize((6*SQ*2,4*SQ*2),Image.NEAREST).save("preview.png"); print("preview.png")
+diff --git a/src/activities/ActivityManager.cpp b/src/activities/ActivityManager.cpp
+index fa34ad7..f048d8a 100644
+--- a/src/activities/ActivityManager.cpp
++++ b/src/activities/ActivityManager.cpp
+@@ -24,8 +24,11 @@
+ #include "settings/OpdsServerListActivity.h"
+ #include "settings/SettingsActivity.h"
+ #include "util/BmpViewerActivity.h"
++#include "util/CalendarActivity.h"
++#include "util/ChessActivity.h"
+ #include "util/FrontlightPanelActivity.h"
+ #include "util/FullScreenMessageActivity.h"
++#include "util/Game2048Activity.h"
+ 
+ static portMUX_TYPE activityManagerSpinlock = portMUX_INITIALIZER_UNLOCKED;
+ 
+@@ -252,6 +255,12 @@ void ActivityManager::goToRecentBooks() {
+   replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
+ }
+ 
++void ActivityManager::goToCalendar() { replaceActivity(std::make_unique<CalendarActivity>(renderer, mappedInput)); }
++
++void ActivityManager::goToChess() { replaceActivity(std::make_unique<ChessActivity>(renderer, mappedInput)); }
++
++void ActivityManager::goToGame2048() { replaceActivity(std::make_unique<Game2048Activity>(renderer, mappedInput)); }
++
+ void ActivityManager::goToBrowser() {
+   const auto& servers = OPDS_STORE.getServers();
+   // Skip the server picker when there's only one server configured
+diff --git a/src/activities/ActivityManager.h b/src/activities/ActivityManager.h
+index acda644..5ee239c 100644
+--- a/src/activities/ActivityManager.h
++++ b/src/activities/ActivityManager.h
+@@ -17,7 +17,17 @@
+ class Activity;    // forward declaration
+ class RenderLock;  // forward declaration
+ 
+-enum class HomeMenuItem { NONE, FILE_BROWSER, RECENTS, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU };
++enum class HomeMenuItem {
++  NONE,
++  FILE_BROWSER,
++  RECENTS,
++  OPDS_BROWSER,
++  FILE_TRANSFER,
++  CALENDAR,
++  CHESS,
++  GAME_2048,
++  SETTINGS_MENU
++};
+ 
+ /**
+  * ActivityManager
+@@ -86,6 +96,9 @@ class ActivityManager {
+   void goToSettings();
+   void goToFileBrowser(std::string path = {});
+   void goToRecentBooks();
++  void goToCalendar();
++  void goToChess();
++  void goToGame2048();
+   void goToBrowser();
+   void goToReader(std::string path, bool allowFastInitialRefresh = false);
+   void goToSleep(bool fromTimeout = false);
+diff --git a/src/activities/home/HomeActivity.cpp b/src/activities/home/HomeActivity.cpp
+index c29d9b2..a9def1c 100644
+--- a/src/activities/home/HomeActivity.cpp
++++ b/src/activities/home/HomeActivity.cpp
+@@ -4,9 +4,11 @@
+ #include <Epub.h>
+ #include <FsHelpers.h>
+ #include <GfxRenderer.h>
++#include <HalClock.h>
+ #include <HalDisplay.h>
+ #include <HalStorage.h>
+ #include <I18n.h>
++#include <Rtc.h>
+ #include <Utf8.h>
+ #include <Xtc.h>
+ 
+@@ -21,9 +23,10 @@
+ #include "RecentBooksStore.h"
+ #include "components/UITheme.h"
+ #include "fontIds.h"
++#include "util/LunarCalendar.h"
+ 
+ int HomeActivity::getMenuItemCount() const {
+-  int count = 4;  // File Browser, Recents, File transfer, Settings
++  int count = 7;  // File Browser, Recents, File transfer, Calendar, Chess, 2048, Settings
+   if (!recentBooks.empty()) {
+     count += recentBooks.size();
+   }
+@@ -191,6 +194,15 @@ void HomeActivity::loop() {
+       case HomeMenuItem::FILE_TRANSFER:
+         onFileTransferOpen();
+         break;
++      case HomeMenuItem::CALENDAR:
++        onCalendarOpen();
++        break;
++      case HomeMenuItem::CHESS:
++        onChessOpen();
++        break;
++      case HomeMenuItem::GAME_2048:
++        onGame2048Open();
++        break;
+       case HomeMenuItem::SETTINGS_MENU:
+         onSettingsOpen();
+         break;
+@@ -278,6 +290,19 @@ void HomeActivity::loop() {
+   }
+ }
+ 
++void HomeActivity::buildCalendarLabel() {
++  // One lunar conversion per Home render. The conversion is software float on the
++  // C3 (a few hundred microseconds); an e-ink refresh is 1-2 seconds, so it does
++  // not show. Falls back to the plain label when the clock has never been set.
++  Rtc::DateTime dt;
++  if (!halClock.getLocalDateTime(dt, SETTINGS.clockUtcOffsetQ)) {
++    snprintf(calendarLabel, sizeof(calendarLabel), "%s", tr(STR_CALENDAR));
++    return;
++  }
++  const lunar::LunarDate ld = lunar::solarToLunar(dt.day, dt.month, dt.year);
++  snprintf(calendarLabel, sizeof(calendarLabel), "%s · %d/%d", tr(STR_CALENDAR), ld.day, ld.month);
++}
++
+ void HomeActivity::render(RenderLock&&) {
+   const auto& metrics = UITheme::getInstance().getMetrics();
+   const auto pageWidth = renderer.getScreenWidth();
+@@ -304,10 +329,13 @@ void HomeActivity::render(RenderLock&&) {
+                           recentBooks, selectorIndex, coverRendered, coverBufferStored, bufferRestored,
+                           std::bind(&HomeActivity::storeCoverBuffer, this));
+ 
++  buildCalendarLabel();
++
+   // Build menu items dynamically
+-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
+-                                        tr(STR_SETTINGS_TITLE)};
+-  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings};
++  std::vector<const char*> menuItems = {
++      tr(STR_BROWSE_FILES),  tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER), calendarLabel, tr(STR_CHESS), "2048",
++      tr(STR_SETTINGS_TITLE)};
++  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Bookmark, Image, Text, Settings};
+ 
+   if (hasOpdsServers) {
+     menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
+@@ -356,3 +384,9 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
+ void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
+ 
+ void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
++
++void HomeActivity::onCalendarOpen() { activityManager.goToCalendar(); }
++
++void HomeActivity::onChessOpen() { activityManager.goToChess(); }
++
++void HomeActivity::onGame2048Open() { activityManager.goToGame2048(); }
+diff --git a/src/activities/home/HomeActivity.h b/src/activities/home/HomeActivity.h
+index 4ea540e..6530a30 100644
+--- a/src/activities/home/HomeActivity.h
++++ b/src/activities/home/HomeActivity.h
+@@ -42,6 +42,12 @@ class HomeActivity final : public Activity {
+     if (hasOpdsUrl) ++i;
+     if (item == HomeMenuItem::FILE_TRANSFER) return i;
+     ++i;
++    if (item == HomeMenuItem::CALENDAR) return i;
++    ++i;
++    if (item == HomeMenuItem::CHESS) return i;
++    ++i;
++    if (item == HomeMenuItem::GAME_2048) return i;
++    ++i;
+     if (item == HomeMenuItem::SETTINGS_MENU) return i;
+     return 0;
+   }
+@@ -53,6 +59,9 @@ class HomeActivity final : public Activity {
+     if (idx == i++) return HomeMenuItem::RECENTS;
+     if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
+     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
++    if (idx == i++) return HomeMenuItem::CALENDAR;
++    if (idx == i++) return HomeMenuItem::CHESS;
++    if (idx == i++) return HomeMenuItem::GAME_2048;
+     if (idx == i) return HomeMenuItem::SETTINGS_MENU;
+     return HomeMenuItem::NONE;
+   }
+@@ -61,8 +70,17 @@ class HomeActivity final : public Activity {
+   void onRecentsOpen();
+   void onSettingsOpen();
+   void onFileTransferOpen();
++  void onCalendarOpen();
++  void onChessOpen();
++  void onGame2048Open();
+   void onOpdsBrowserOpen();
+ 
++  // Menu label for the Calendar row, carrying today's lunar day when the clock is
++  // set ("Lịch · 29/7"). Held as a member because drawButtonMenu takes
++  // `const char*` and must outlive the call; rebuilt in render().
++  char calendarLabel[40] = {};
++  void buildCalendarLabel();
++
+   int getMenuItemCount() const;
+   bool storeCoverBuffer();    // Store frame buffer for cover image
+   bool restoreCoverBuffer();  // Restore frame buffer from stored cover
+diff --git a/src/activities/util/ChessActivity.cpp b/src/activities/util/ChessActivity.cpp
+new file mode 100644
+index 0000000..dd87a82
+--- /dev/null
++++ b/src/activities/util/ChessActivity.cpp
+@@ -0,0 +1,739 @@
++#include "ChessActivity.h"
++
++#include <Arduino.h>
++#include <ChessPieces.h>
++#include <GfxRenderer.h>
++#include <I18n.h>
++#include <Logging.h>
++#include <Memory.h>
++
++#include <cstdio>
++
++#include "components/UITheme.h"
++#include "fontIds.h"
++#include "util/ButtonNavigator.h"
++
++namespace {
++
++// Every entry is checked by test/chess_native to have at least one mating move.
++constexpr const char* PUZZLES[] = {
++    "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",     "7k/R7/8/8/8/8/8/1R4K1 w - - 0 1",
++    "k7/8/1K6/8/8/8/8/7R w - - 0 1",         "7k/8/6K1/8/8/8/8/R7 w - - 0 1",
++    "6k1/5ppp/8/8/8/8/5PPP/3Q2K1 w - - 0 1", "7k/5K2/8/8/8/8/8/6Q1 w - - 0 1",
++    "8/8/8/8/8/k1K5/8/1Q6 w - - 0 1",        "6k1/4Rppp/8/8/8/8/8/4R1K1 w - - 0 1",
++    "7k/6pp/8/8/8/8/8/K4Q1R w - - 0 1",      "5k2/5P2/5K2/8/8/8/8/6R1 w - - 0 1",
++    "k7/2P5/1K6/8/8/8/8/8 w - - 0 1",        "7k/8/5N2/8/8/8/8/6RK w - - 0 1",
++    "6rk/6pp/8/6N1/8/8/8/6K1 w - - 0 1",     "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
++    "6K1/8/6k1/8/8/8/8/r7 b - - 0 1",        "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 1",
++};
++constexpr int PUZZLE_COUNT = sizeof(PUZZLES) / sizeof(PUZZLES[0]);
++
++// One page of the rules guide. A page with a position draws it, and when `focus`
++// names a square the dots show where that piece may go - computed by the engine,
++// so the diagrams cannot drift from the rules.
++struct GuidePage {
++  StrId title;
++  StrId bodyA;
++  StrId bodyB;
++  const char* fen;  // nullptr for a text-only page
++  int8_t focus;     // square whose moves are dotted, -1 for none
++};
++constexpr GuidePage GUIDE[] = {
++    {StrId::STR_CHESS_G_GOAL_T, StrId::STR_CHESS_G_GOAL_A, StrId::STR_CHESS_G_GOAL_B,
++     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", -1},
++    {StrId::STR_CHESS_G_PAWN_T, StrId::STR_CHESS_G_PAWN_A, StrId::STR_CHESS_G_PAWN_B, "8/8/8/8/8/3p1n2/4P3/8 w - - 0 1",
++     12},
++    {StrId::STR_CHESS_G_ROOK_T, StrId::STR_CHESS_G_ROOK_A, StrId::STR_CHESS_G_ROOK_B, "8/8/8/8/3R4/8/8/8 w - - 0 1",
++     27},
++    {StrId::STR_CHESS_G_BISHOP_T, StrId::STR_CHESS_G_BISHOP_A, StrId::STR_CHESS_G_BISHOP_B,
++     "8/8/8/8/3B4/8/8/8 w - - 0 1", 27},
++    {StrId::STR_CHESS_G_QUEEN_T, StrId::STR_CHESS_G_QUEEN_A, StrId::STR_CHESS_G_QUEEN_B, "8/8/8/8/3Q4/8/8/8 w - - 0 1",
++     27},
++    {StrId::STR_CHESS_G_KNIGHT_T, StrId::STR_CHESS_G_KNIGHT_A, StrId::STR_CHESS_G_KNIGHT_B,
++     "8/8/8/8/3N4/8/8/8 w - - 0 1", 27},
++    {StrId::STR_CHESS_G_KING_T, StrId::STR_CHESS_G_KING_A, StrId::STR_CHESS_G_KING_B, "8/8/8/8/3K4/8/8/8 w - - 0 1",
++     27},
++    {StrId::STR_CHESS_G_MATE_T, StrId::STR_CHESS_G_MATE_A, StrId::STR_CHESS_G_MATE_B,
++     "R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1", -1},
++    {StrId::STR_CHESS_G_CASTLE_T, StrId::STR_CHESS_G_CASTLE_A, StrId::STR_CHESS_G_CASTLE_B,
++     "8/8/8/8/8/8/8/4K2R w K - 0 1", 4},
++    {StrId::STR_CHESS_G_PROMO_T, StrId::STR_CHESS_G_PROMO_A, StrId::STR_CHESS_G_PROMO_B, "8/4P3/8/8/8/8/8/8 w - - 0 1",
++     52},
++    {StrId::STR_CHESS_G_DRAW_T, StrId::STR_CHESS_G_DRAW_A, StrId::STR_CHESS_G_DRAW_B, nullptr, -1},
++    {StrId::STR_CHESS_G_VALUE_T, StrId::STR_CHESS_G_VALUE_A, StrId::STR_CHESS_G_VALUE_B, nullptr, -1},
++    {StrId::STR_CHESS_G_TIPS_T, StrId::STR_CHESS_G_TIPS_A, StrId::STR_CHESS_G_TIPS_B, nullptr, -1},
++    {StrId::STR_CHESS_G_KEYS_T, StrId::STR_CHESS_G_KEYS_A, StrId::STR_CHESS_G_KEYS_B, nullptr, -1},
++};
++constexpr int GUIDE_COUNT = sizeof(GUIDE) / sizeof(GUIDE[0]);
++constexpr int GUIDE_BODY_LINES = 6;
++
++constexpr int BOARD_MARGIN = 8;
++constexpr int CURSOR_WIDTH = 4;
++constexpr int HINT_DEPTH = 4;
++constexpr uint32_t HINT_TIME_MS = 2500;
++
++// The search runs for up to a few seconds; hand the CPU back often enough that
++// the idle task can feed the watchdog.
++void yieldToScheduler() { vTaskDelay(1); }
++uint32_t nowMs() { return millis(); }
++
++bool maskBit(const uint8_t* mask, const int x, const int y) {
++  return mask[y * (chess_art::PIECE_SIZE / 8) + (x >> 3)] & (0x80 >> (x & 7));
++}
++
++}  // namespace
++
++ChessActivity::ChessActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
++    : Activity("Chess", renderer, mappedInput) {}
++
++void ChessActivity::onEnter() {
++  Activity::onEnter();
++  searchPool = makeUniqueNoThrow<chess::Move[]>(SEARCH_POOL_MOVES);
++  if (!searchPool) LOG_ERR("CHESS", "OOM: %d bytes", static_cast<int>(SEARCH_POOL_MOVES * sizeof(chess::Move)));
++  gameLog = makeUniqueNoThrow<GameLog>();
++  if (!gameLog) LOG_ERR("CHESS", "OOM: %d bytes", static_cast<int>(sizeof(GameLog)));
++  screen = Screen::Menu;
++  requestUpdate();
++}
++
++void ChessActivity::onExit() {
++  gameLog.reset();
++  searchPool.reset();
++  Activity::onExit();
++}
++
++void ChessActivity::refreshLegalMoves() { legalCount = board.generateLegal(legal); }
++
++void ChessActivity::startGame(const int level) {
++  levelIndex = level;
++  board.reset();
++  humanIsWhite = true;
++  gameOver = false;
++  historyCount = 0;
++  if (gameLog) gameLog->keys[0] = chess::positionKey(board);
++  selected = lastFrom = lastTo = hintFrom = hintTo = -1;
++  cursor = 12;
++  status = Status::YourTurn;
++  screen = Screen::Play;
++  refreshLegalMoves();
++}
++
++void ChessActivity::loadPuzzle(const int index) {
++  puzzleIndex = ((index % PUZZLE_COUNT) + PUZZLE_COUNT) % PUZZLE_COUNT;
++  board.setFen(PUZZLES[puzzleIndex]);
++  humanIsWhite = board.whiteToMove;
++  gameOver = false;
++  historyCount = 0;
++  selected = lastFrom = lastTo = hintFrom = hintTo = -1;
++  cursor = humanIsWhite ? 12 : 52;
++  status = Status::YourTurn;
++  screen = Screen::Puzzle;
++  refreshLegalMoves();
++}
++
++bool ChessActivity::isLegalTarget(const int from, const int to) const {
++  for (int i = 0; i < legalCount; i++) {
++    if (legal[i].from == from && legal[i].to == to) return true;
++  }
++  return false;
++}
++
++bool ChessActivity::isRepetition() const {
++  if (!gameLog) return false;
++  const uint64_t key = gameLog->keys[historyCount];
++  int seen = 0;
++  for (int i = 0; i <= historyCount; i++) {
++    if (gameLog->keys[i] == key) seen++;
++  }
++  return seen >= 3;
++}
++
++void ChessActivity::moveCursor(const int dFile, const int dRank) {
++  const int f = ((cursor & 7) + dFile + 8) % 8;
++  const int r = ((cursor >> 3) + dRank + 8) % 8;
++  cursor = r * 8 + f;
++}
++
++void ChessActivity::playMove(const chess::Move& m) {
++  chess::Undo undo;
++  board.make(m, undo);
++  if (gameLog && historyCount < MAX_HISTORY) {
++    gameLog->played[historyCount] = Played{m, undo};
++    historyCount++;
++    gameLog->keys[historyCount] = chess::positionKey(board);
++  }
++  lastFrom = m.from;
++  lastTo = m.to;
++  hintFrom = hintTo = -1;
++}
++
++bool ChessActivity::tryHumanMove(const int from, const int to) {
++  for (int i = 0; i < legalCount; i++) {
++    const chess::Move m = legal[i];
++    // Promotions always take a queen: one fewer prompt, and it is the right
++    // choice in all but composed studies.
++    if (m.from != from || m.to != to || (m.promo && m.promo != chess::QUEEN)) continue;
++
++    if (screen == Screen::Puzzle) {
++      chess::Undo undo;
++      board.make(m, undo);
++      const bool mate = searchPool && board.inCheck() && !board.hasLegalMove(searchPool.get());
++      board.unmake(m, undo);
++      if (!mate) {
++        status = Status::TryAgain;
++        return false;
++      }
++      playMove(m);
++      status = Status::Solved;
++      gameOver = true;
++      return true;
++    }
++    playMove(m);
++    return true;
++  }
++  return false;
++}
++
++void ChessActivity::updateStatusAfterMove(const bool humanJustMoved) {
++  refreshLegalMoves();
++  if (legalCount == 0) {
++    gameOver = true;
++    if (!board.inCheck()) {
++      status = Status::Stalemate;
++    } else {
++      status = humanJustMoved ? Status::YouWin : Status::YouLose;
++    }
++    return;
++  }
++  // A game too long for the log can no longer count repetitions; call it drawn.
++  if (board.halfmove >= 100 || historyCount >= MAX_HISTORY) {
++    gameOver = true;
++    status = Status::DrawFifty;
++  } else if (chess::insufficientMaterial(board)) {
++    gameOver = true;
++    status = Status::DrawMaterial;
++  } else if (isRepetition()) {
++    gameOver = true;
++    status = Status::DrawRepetition;
++  } else if (!humanJustMoved) {
++    status = board.inCheck() ? Status::Check : Status::YourTurn;
++  }
++}
++
++bool ChessActivity::search(const int depth, const uint32_t timeMs, const int noise, chess::Move& best) {
++  if (!searchPool) return false;
++  // Search a copy: the live board must stay consistent if a render is forced
++  // while the search is making and unmaking moves.
++  chess::Board scratch = board;
++  auto ctx = makeUniqueNoThrow<chess::SearchContext>();
++  if (!ctx) {
++    LOG_ERR("CHESS", "OOM: search context");
++    return false;
++  }
++  ctx->pool = searchPool.get();
++  ctx->poolSize = SEARCH_POOL_MOVES;
++  ctx->yieldFn = &yieldToScheduler;
++  ctx->nowMs = &nowMs;
++  const bool found = chess::findBestMove(scratch, depth, timeMs, noise, millis(), *ctx, best);
++  LOG_DBG("CHESS", "depth=%d nodes=%u", ctx->depthReached, static_cast<unsigned>(ctx->nodes));
++  return found;
++}
++
++void ChessActivity::engineReply() {
++  // {depth, time cap, noise}: the easy level looks one move ahead and blunders now
++  // and then; the hard level deepens until its time runs out.
++  static constexpr Level LEVELS[3] = {{1, 1000, 60}, {3, 2500, 0}, {6, 5000, 0}};
++  status = Status::Thinking;
++  requestUpdateAndWait();
++
++  const Level& level = LEVELS[levelIndex];
++  // A little noise in the first moves keeps every game from opening the same way.
++  const int noise = level.noise > 0 ? level.noise : (historyCount < 8 ? 12 : 0);
++  chess::Move best;
++  if (search(level.depth, level.timeMs, noise, best)) playMove(best);
++  updateStatusAfterMove(false);
++}
++
++void ChessActivity::showHint() {
++  if (gameOver) return;
++  hintFrom = hintTo = -1;
++  if (screen == Screen::Puzzle) {
++    for (int i = 0; i < legalCount && hintFrom < 0; i++) {
++      chess::Undo undo;
++      board.make(legal[i], undo);
++      if (searchPool && board.inCheck() && !board.hasLegalMove(searchPool.get())) {
++        hintFrom = legal[i].from;
++        hintTo = legal[i].to;
++      }
++      board.unmake(legal[i], undo);
++    }
++  } else {
++    status = Status::Thinking;
++    requestUpdateAndWait();
++    chess::Move best;
++    if (search(HINT_DEPTH, HINT_TIME_MS, 0, best)) {
++      hintFrom = best.from;
++      hintTo = best.to;
++    }
++  }
++  if (hintFrom >= 0) {
++    status = Status::HintShown;
++    cursor = hintFrom;
++    selected = -1;
++  } else {
++    status = Status::YourTurn;
++  }
++}
++
++void ChessActivity::takeBack() {
++  if (!gameLog || historyCount == 0) return;
++  // Undo the engine's reply and the move before it, so it is the player's turn again.
++  int popped = 0;
++  while (historyCount > 0 && (popped == 0 || board.whiteToMove != humanIsWhite)) {
++    historyCount--;
++    board.unmake(gameLog->played[historyCount].move, gameLog->played[historyCount].undo);
++    popped++;
++  }
++  gameOver = false;
++  selected = hintFrom = hintTo = -1;
++  if (historyCount > 0) {
++    lastFrom = gameLog->played[historyCount - 1].move.from;
++    lastTo = gameLog->played[historyCount - 1].move.to;
++  } else {
++    lastFrom = lastTo = -1;
++  }
++  refreshLegalMoves();
++  status = board.inCheck() ? Status::Check : Status::YourTurn;
++  if (board.whiteToMove != humanIsWhite) engineReply();  // took back down to an engine turn
++}
++
++int ChessActivity::pauseItems(PauseItem* out) const {
++  int n = 0;
++  out[n++] = PauseItem::Resume;
++  if (!gameOver) out[n++] = PauseItem::Hint;
++  if (pausedFrom == Screen::Play) {
++    if (historyCount > 0) out[n++] = PauseItem::Undo;
++    out[n++] = PauseItem::NewGame;
++  } else {
++    out[n++] = PauseItem::NextPuzzle;
++  }
++  out[n++] = PauseItem::Exit;
++  return n;
++}
++
++void ChessActivity::onPauseSelect() {
++  PauseItem items[MAX_PAUSE_ITEMS];
++  const int n = pauseItems(items);
++  const PauseItem chosen = items[pauseIndex < n ? pauseIndex : 0];
++  screen = pausedFrom;
++  switch (chosen) {
++    case PauseItem::Hint:
++      showHint();
++      break;
++    case PauseItem::Undo:
++      takeBack();
++      break;
++    case PauseItem::NewGame:
++      startGame(levelIndex);
++      break;
++    case PauseItem::NextPuzzle:
++      loadPuzzle(puzzleIndex + 1);
++      break;
++    case PauseItem::Exit:
++      screen = Screen::Menu;
++      break;
++    case PauseItem::Resume:
++    default:
++      break;
++  }
++}
++
++void ChessActivity::onConfirm() {
++  if (screen == Screen::Menu) {
++    if (menuIndex < 3) {
++      startGame(menuIndex);
++    } else if (menuIndex == 3) {
++      loadPuzzle(puzzleIndex);
++    } else {
++      screen = Screen::Guide;
++      loadGuidePage();
++    }
++    return;
++  }
++  if (screen == Screen::Guide) {
++    guidePage = (guidePage + 1) % GUIDE_COUNT;
++    loadGuidePage();
++    return;
++  }
++  if (screen == Screen::Pause) {
++    onPauseSelect();
++    return;
++  }
++  if (gameOver) {
++    if (screen == Screen::Puzzle) {
++      loadPuzzle(puzzleIndex + 1);
++    } else {
++      startGame(levelIndex);
++    }
++    return;
++  }
++
++  const int8_t piece = board.sq[cursor];
++  const bool ownPiece = piece != chess::EMPTY && (piece > 0) == board.whiteToMove;
++  if (selected < 0) {
++    if (ownPiece) selected = cursor;
++    return;
++  }
++  if (cursor == selected) {
++    selected = -1;
++    return;
++  }
++  if (isLegalTarget(selected, cursor)) {
++    const bool moved = tryHumanMove(selected, cursor);
++    selected = -1;
++    if (moved && screen == Screen::Play) {
++      updateStatusAfterMove(true);
++      if (!gameOver) engineReply();
++    }
++    return;
++  }
++  selected = ownPiece ? cursor : -1;  // picking another of your pieces switches the selection
++}
++
++void ChessActivity::onBack() {
++  switch (screen) {
++    case Screen::Menu:
++      finish();
++      return;
++    case Screen::Pause:
++      screen = pausedFrom;
++      return;
++    case Screen::Guide:
++      screen = Screen::Menu;
++      return;
++    default:
++      if (selected >= 0) {
++        selected = -1;
++        return;
++      }
++      pausedFrom = screen;
++      pauseIndex = 0;
++      screen = Screen::Pause;
++      return;
++  }
++}
++
++void ChessActivity::loop() {
++  bool dirty = false;
++  PauseItem items[MAX_PAUSE_ITEMS];
++  const int pauseCount = screen == Screen::Pause ? pauseItems(items) : 0;
++
++  // Lists step with the Nav pair, which already folds side Up/Down and front
++  // Left/Right into previous/next. The board needs four independent directions, so
++  // it uses the Screen* buttons instead: each maps to exactly one physical button
++  // in every orientation. Registering both for one screen would fire twice per press.
++  const bool onBoard = screen == Screen::Play || screen == Screen::Puzzle;
++  auto stepList = [&](const int delta) {
++    if (screen == Screen::Menu) {
++      menuIndex = (menuIndex + delta + MENU_ITEMS) % MENU_ITEMS;
++    } else if (screen == Screen::Guide) {
++      guidePage = (guidePage + delta + GUIDE_COUNT) % GUIDE_COUNT;
++      loadGuidePage();
++    } else {
++      pauseIndex = (pauseIndex + delta + pauseCount) % pauseCount;
++    }
++    dirty = true;
++  };
++  auto stepBoard = [&](const int dFile, const int dRank) {
++    moveCursor(dFile, dRank);
++    dirty = true;
++  };
++
++  if (onBoard) {
++    ButtonNavigator::onPress({MappedInputManager::Button::ScreenLeft}, [&] { stepBoard(-1, 0); });
++    ButtonNavigator::onPress({MappedInputManager::Button::ScreenRight}, [&] { stepBoard(1, 0); });
++    ButtonNavigator::onPress({MappedInputManager::Button::ScreenUp}, [&] { stepBoard(0, 1); });
++    ButtonNavigator::onPress({MappedInputManager::Button::ScreenDown}, [&] { stepBoard(0, -1); });
++  } else {
++    ButtonNavigator::onPreviousPress([&] { stepList(-1); });
++    ButtonNavigator::onNextPress([&] { stepList(1); });
++  }
++  ButtonNavigator::onPress({MappedInputManager::Button::Confirm}, [&] {
++    onConfirm();
++    dirty = true;
++  });
++  ButtonNavigator::onPress({MappedInputManager::Button::Back}, [&] {
++    onBack();
++    dirty = true;
++  });
++
++  if (dirty) requestUpdate();
++}
++
++const char* ChessActivity::statusText() const {
++  switch (status) {
++    case Status::Thinking:
++      return tr(STR_CHESS_THINKING);
++    case Status::Check:
++      return tr(STR_CHESS_CHECK);
++    case Status::HintShown:
++      return tr(STR_CHESS_HINT_SHOWN);
++    case Status::YouWin:
++      return tr(STR_CHESS_YOU_WIN);
++    case Status::YouLose:
++      return tr(STR_CHESS_YOU_LOSE);
++    case Status::Stalemate:
++      return tr(STR_CHESS_STALEMATE);
++    case Status::DrawRepetition:
++      return tr(STR_CHESS_DRAW_REPETITION);
++    case Status::DrawMaterial:
++      return tr(STR_CHESS_DRAW_MATERIAL);
++    case Status::DrawFifty:
++      return tr(STR_CHESS_DRAW_FIFTY);
++    case Status::Solved:
++      return tr(STR_CHESS_SOLVED);
++    case Status::TryAgain:
++      return tr(STR_CHESS_TRY_AGAIN);
++    case Status::YourTurn:
++    default:
++      if (screen == Screen::Puzzle) return humanIsWhite ? tr(STR_CHESS_WHITE_MATES) : tr(STR_CHESS_BLACK_MATES);
++      return tr(STR_CHESS_YOUR_TURN);
++  }
++}
++
++void ChessActivity::drawPiece(const int x, const int y, const int8_t piece) const {
++  const int type = (piece < 0 ? -piece : piece) - 1;
++  if (type < 0 || type > 5) return;
++  const bool white = piece > 0;
++  const uint8_t* halo = chess_art::HALO[type];
++  const uint8_t* body = chess_art::BODY[type];
++  const uint8_t* outline = chess_art::OUTLINE[type];
++
++  for (int py = 0; py < chess_art::PIECE_SIZE; py++) {
++    for (int px = 0; px < chess_art::PIECE_SIZE; px++) {
++      if (!maskBit(halo, px, py)) continue;
++      // White piece: white body with a black rim. Black piece: solid body. Both
++      // keep the white halo so they stand clear of a shaded square.
++      const bool black = maskBit(body, px, py) && (!white || maskBit(outline, px, py));
++      renderer.drawPixel(x + px, y + py, black);
++    }
++  }
++}
++
++void ChessActivity::drawCorners(const int x, const int y, const int size) const {
++  const int len = size / 3;
++  constexpr int w = 3;
++  for (int i = 0; i < 4; i++) {
++    const int cx = (i & 1) ? x + size - len : x;
++    const int cy = (i & 2) ? y + size - w : y;
++    renderer.fillRect(cx, cy, len, w, true);
++    const int vx = (i & 1) ? x + size - w : x;
++    const int vy = (i & 2) ? y + size - len : y;
++    renderer.fillRect(vx, vy, w, len, true);
++  }
++}
++
++void ChessActivity::renderList(const Rect& safe, const char* const* items, const int count, const int selectedIndex) {
++  const auto& metrics = UITheme::getInstance().getMetrics();
++  const int rowH = metrics.listRowHeight;
++  const int left = safe.x + metrics.contentSidePadding;
++  const int width = safe.width - 2 * metrics.contentSidePadding;
++  int y = safe.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
++
++  for (int i = 0; i < count; i++) {
++    const bool sel = i == selectedIndex;
++    if (sel) renderer.fillRect(left, y, width, rowH, true);
++    const int textY = y + (rowH - renderer.getLineHeight(UI_12_FONT_ID)) / 2;
++    renderer.drawText(UI_12_FONT_ID, left + 12, textY, items[i], !sel);
++    y += rowH + 4;
++  }
++}
++
++void ChessActivity::renderBoard(const Rect& safe) {
++  const auto& metrics = UITheme::getInstance().getMetrics();
++  const int top = safe.y + metrics.topPadding + metrics.headerHeight + BOARD_MARGIN;
++  const int availH = safe.y + safe.height - top - BOARD_MARGIN;
++  const bool landscape = safe.width > safe.height;
++  const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
++
++  // Portrait keeps two text lines under the board; landscape puts them beside it.
++  const int boardRoomW = landscape ? safe.width / 2 : safe.width - 2 * BOARD_MARGIN;
++  const int boardRoomH = landscape ? availH : availH - 2 * lineH - BOARD_MARGIN;
++  int sqSize = (boardRoomW < boardRoomH ? boardRoomW : boardRoomH) / 8;
++  if (sqSize < chess_art::PIECE_SIZE) sqSize = chess_art::PIECE_SIZE;
++  const int boardPx = sqSize * 8;
++  const int boardX = landscape ? safe.x + BOARD_MARGIN : safe.x + (safe.width - boardPx) / 2;
++  const int boardY = top;
++  const int pieceOff = (sqSize - chess_art::PIECE_SIZE) / 2;
++
++  for (int s = 0; s < 64; s++) {
++    const int f = s & 7, r = s >> 3;
++    const int x = boardX + f * sqSize;
++    const int y = boardY + (7 - r) * sqSize;
++    if (((f + r) & 1) == 0) renderer.fillRectDither(x, y, sqSize, sqSize, LightGray);  // a1 is dark
++
++    if (selected >= 0 && isLegalTarget(selected, s)) {
++      const int dot = sqSize / 5;
++      renderer.fillRect(x + (sqSize - dot) / 2, y + (sqSize - dot) / 2, dot, dot, true);
++    }
++    if (board.sq[s] != chess::EMPTY) drawPiece(x + pieceOff, y + pieceOff, board.sq[s]);
++    if (s == lastFrom || s == lastTo) renderer.drawRect(x + 1, y + 1, sqSize - 2, sqSize - 2, 1, true);
++    if (s == hintFrom || s == hintTo) drawCorners(x, y, sqSize);
++  }
++  renderer.drawRect(boardX - 1, boardY - 1, boardPx + 2, boardPx + 2, 2, true);
++
++  if (selected >= 0) {
++    const int x = boardX + (selected & 7) * sqSize;
++    const int y = boardY + (7 - (selected >> 3)) * sqSize;
++    renderer.fillRect(x, y, sqSize, CURSOR_WIDTH, true);
++    renderer.fillRect(x, y + sqSize - CURSOR_WIDTH, sqSize, CURSOR_WIDTH, true);
++  }
++  {
++    const int x = boardX + (cursor & 7) * sqSize;
++    const int y = boardY + (7 - (cursor >> 3)) * sqSize;
++    renderer.drawRect(x, y, sqSize, sqSize, CURSOR_WIDTH, true);
++    renderer.drawRect(x + CURSOR_WIDTH, y + CURSOR_WIDTH, sqSize - 2 * CURSOR_WIDTH, sqSize - 2 * CURSOR_WIDTH, 1,
++                      false);
++  }
++
++  char title[48] = "";
++  if (screen == Screen::Puzzle) {
++    snprintf(title, sizeof(title), "%s %d/%d", tr(STR_CHESS_PUZZLE), puzzleIndex + 1, PUZZLE_COUNT);
++  } else {
++    const char* const names[3] = {tr(STR_CHESS_PLAY_EASY), tr(STR_CHESS_PLAY_MEDIUM), tr(STR_CHESS_PLAY_HARD)};
++    snprintf(title, sizeof(title), "%s", names[levelIndex]);
++  }
++  if (landscape) {
++    const int textX = boardX + boardPx + 2 * BOARD_MARGIN;
++    renderer.drawText(UI_12_FONT_ID, textX, boardY, statusText());
++    renderer.drawText(UI_10_FONT_ID, textX, boardY + lineH + 6, title);
++  } else {
++    const int textY = boardY + boardPx + BOARD_MARGIN;
++    renderer.drawCenteredText(UI_12_FONT_ID, textY, statusText());
++    renderer.drawCenteredText(UI_10_FONT_ID, textY + lineH + 2, title);
++  }
++}
++
++void ChessActivity::loadGuidePage() {
++  const GuidePage& page = GUIDE[guidePage];
++  legalCount = 0;
++  if (!page.fen) return;
++  board.setFen(page.fen);  // diagrams need not hold both kings, so the result is ignored
++  if (page.focus >= 0) legalCount = board.generatePseudo(legal, false);
++}
++
++void ChessActivity::renderGuide(const Rect& safe) {
++  const auto& metrics = UITheme::getInstance().getMetrics();
++  const GuidePage& page = GUIDE[guidePage];
++  const bool landscape = safe.width > safe.height;
++  const int pad = metrics.contentSidePadding;
++  const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
++  int top = safe.y + metrics.topPadding + metrics.headerHeight + BOARD_MARGIN;
++
++  int textX = safe.x + pad;
++  int textW = safe.width - 2 * pad;
++  int textY = top;
++
++  if (page.fen) {
++    constexpr int sq = chess_art::PIECE_SIZE;
++    const int boardPx = sq * 8;
++    const int boardX = landscape ? safe.x + BOARD_MARGIN : safe.x + (safe.width - boardPx) / 2;
++    for (int s = 0; s < 64; s++) {
++      const int f = s & 7, r = s >> 3;
++      const int x = boardX + f * sq;
++      const int y = top + (7 - r) * sq;
++      if (((f + r) & 1) == 0) renderer.fillRectDither(x, y, sq, sq, LightGray);
++      if (board.sq[s] != chess::EMPTY) drawPiece(x, y, board.sq[s]);
++      if (s == page.focus) drawCorners(x, y, sq);
++    }
++    for (int i = 0; i < legalCount; i++) {
++      if (legal[i].from != page.focus) continue;
++      const int to = legal[i].to;
++      constexpr int dot = sq / 4;
++      const int x = boardX + (to & 7) * sq + (sq - dot) / 2;
++      const int y = top + (7 - (to >> 3)) * sq + (sq - dot) / 2;
++      renderer.fillRect(x - 2, y - 2, dot + 4, dot + 4, false);  // white rim keeps the dot visible on a piece
++      renderer.fillRect(x, y, dot, dot, true);
++    }
++    renderer.drawRect(boardX - 1, top - 1, boardPx + 2, boardPx + 2, 2, true);
++    if (landscape) {
++      textX = boardX + boardPx + 2 * BOARD_MARGIN;
++      textW = safe.x + safe.width - textX - pad;
++    } else {
++      textY = top + boardPx + BOARD_MARGIN;
++    }
++  }
++
++  renderer.drawText(UI_12_FONT_ID, textX, textY, I18N.get(page.title), true, EpdFontFamily::BOLD);
++  textY += lineH + 6;
++  for (const StrId id : {page.bodyA, page.bodyB}) {
++    for (const auto& line : renderer.wrappedText(UI_12_FONT_ID, I18N.get(id), textW, GUIDE_BODY_LINES)) {
++      renderer.drawText(UI_12_FONT_ID, textX, textY, line.c_str());
++      textY += lineH;
++    }
++    textY += lineH / 2;
++  }
++
++  char footer[24];
++  snprintf(footer, sizeof(footer), "%s %d/%d", tr(STR_CHESS_PAGE), guidePage + 1, GUIDE_COUNT);
++  const int footerY = safe.y + safe.height - renderer.getLineHeight(UI_10_FONT_ID) - 4;
++  renderer.drawText(UI_10_FONT_ID, safe.x + safe.width - pad - renderer.getTextWidth(UI_10_FONT_ID, footer), footerY,
++                    footer);
++}
++
++void ChessActivity::render(RenderLock&&) {
++  const auto& metrics = UITheme::getInstance().getMetrics();
++  const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
++
++  renderer.clearScreen();
++  GUI.drawHeader(renderer, Rect{safe.x, safe.y + metrics.topPadding, safe.width, metrics.headerHeight}, tr(STR_CHESS));
++
++  const char* confirmLabel = tr(STR_SELECT);
++  if (screen == Screen::Menu) {
++    const char* const items[MENU_ITEMS] = {tr(STR_CHESS_PLAY_EASY), tr(STR_CHESS_PLAY_MEDIUM), tr(STR_CHESS_PLAY_HARD),
++                                           tr(STR_CHESS_PUZZLES), tr(STR_CHESS_GUIDE)};
++    renderList(safe, items, MENU_ITEMS, menuIndex);
++  } else if (screen == Screen::Guide) {
++    renderGuide(safe);
++    confirmLabel = tr(STR_CHESS_NEXT);
++  } else if (screen == Screen::Pause) {
++    PauseItem kinds[MAX_PAUSE_ITEMS];
++    const int n = pauseItems(kinds);
++    const char* labels[MAX_PAUSE_ITEMS];
++    for (int i = 0; i < n; i++) {
++      switch (kinds[i]) {
++        case PauseItem::Hint:
++          labels[i] = tr(STR_CHESS_HINT);
++          break;
++        case PauseItem::Undo:
++          labels[i] = tr(STR_CHESS_UNDO);
++          break;
++        case PauseItem::NewGame:
++          labels[i] = tr(STR_CHESS_NEW_GAME);
++          break;
++        case PauseItem::NextPuzzle:
++          labels[i] = tr(STR_CHESS_NEXT_PUZZLE);
++          break;
++        case PauseItem::Exit:
++          labels[i] = tr(STR_CHESS_EXIT);
++          break;
++        case PauseItem::Resume:
++        default:
++          labels[i] = tr(STR_CHESS_RESUME);
++          break;
++      }
++    }
++    renderList(safe, labels, n, pauseIndex);
++  } else {
++    renderBoard(safe);
++    if (gameOver) {
++      confirmLabel = screen == Screen::Puzzle ? tr(STR_CHESS_NEXT) : tr(STR_CHESS_NEW_GAME);
++    } else if (selected >= 0) {
++      confirmLabel = tr(STR_CHESS_MOVE);
++    }
++  }
++
++  const auto hints = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, "<", ">");
++  GUI.drawButtonHints(renderer, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
++  renderer.displayBuffer();
++}
+diff --git a/src/activities/util/ChessActivity.h b/src/activities/util/ChessActivity.h
+new file mode 100644
+index 0000000..568b8b5
+--- /dev/null
++++ b/src/activities/util/ChessActivity.h
+@@ -0,0 +1,121 @@
++#pragma once
++
++#include <ChessEngine.h>
++
++#include <memory>
++
++#include "activities/Activity.h"
++
++class GfxRenderer;
++struct Rect;
++
++// Button-driven chess: play the built-in engine at three strengths, or solve
++// mate-in-one puzzles. White is always drawn at the bottom. Back opens a pause
++// menu with a hint, take-back and new game.
++//
++// Resource note (AGENTS.md): two heap blocks, both taken once in onEnter() and
++// released in onExit(): the search scratch pool (SEARCH_POOL_MOVES * 4 bytes) and
++// the game log (~5KB) behind take-back and the threefold-repetition rule. They are
++// heap rather than static because they are needed only while this screen is open;
++// as .bss they would cost the reader that DRAM for the whole uptime. They are not
++// stack because the search recurses and the loop task stack is small. A failed
++// allocation degrades the feature (no engine / no take-back) instead of crashing.
++class ChessActivity final : public Activity {
++ public:
++  ChessActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
++
++  void onEnter() override;
++  void onExit() override;
++  void loop() override;
++  void render(RenderLock&&) override;
++
++ private:
++  enum class Screen : uint8_t { Menu, Play, Puzzle, Pause, Guide };
++  enum class Status : uint8_t {
++    YourTurn,
++    Thinking,
++    Check,
++    HintShown,
++    YouWin,
++    YouLose,
++    Stalemate,
++    DrawRepetition,
++    DrawMaterial,
++    DrawFifty,
++    Solved,
++    TryAgain
++  };
++  enum class PauseItem : uint8_t { Resume, Hint, Undo, NewGame, NextPuzzle, Exit };
++
++  struct Level {
++    int depth;
++    uint32_t timeMs;
++    int noise;
++  };
++  struct Played {
++    chess::Move move;
++    chess::Undo undo;
++  };
++  static constexpr int MAX_HISTORY = 300;
++  struct GameLog {
++    Played played[MAX_HISTORY];
++    uint64_t keys[MAX_HISTORY + 1];  // keys[i] is the position before played[i]
++  };
++
++  static constexpr int MENU_ITEMS = 5;
++  static constexpr int MAX_PAUSE_ITEMS = 5;
++  static constexpr int SEARCH_POOL_MOVES = 2048;
++
++  Screen screen = Screen::Menu;
++  Screen pausedFrom = Screen::Play;
++  Status status = Status::YourTurn;
++  int menuIndex = 0;
++  int pauseIndex = 0;
++  int levelIndex = 0;
++
++  chess::Board board;
++  chess::Move legal[chess::MAX_MOVES];
++  int legalCount = 0;
++
++  std::unique_ptr<chess::Move[]> searchPool;
++  std::unique_ptr<GameLog> gameLog;
++  int historyCount = 0;
++  bool humanIsWhite = true;
++  bool gameOver = false;
++
++  int cursor = 12;    // e2
++  int selected = -1;  // square of the picked-up piece, -1 when none
++  int lastFrom = -1;  // most recent move, outlined so it is easy to spot
++  int lastTo = -1;
++  int hintFrom = -1;
++  int hintTo = -1;
++  int puzzleIndex = 0;
++  int guidePage = 0;
++
++  void startGame(int level);
++  void loadPuzzle(int index);
++  void refreshLegalMoves();
++  void moveCursor(int dFile, int dRank);
++  void onConfirm();
++  void onBack();
++  void onPauseSelect();
++  int pauseItems(PauseItem* out) const;
++
++  void playMove(const chess::Move& m);
++  bool tryHumanMove(int from, int to);
++  void engineReply();
++  void updateStatusAfterMove(bool humanJustMoved);
++  bool search(int depth, uint32_t timeMs, int noise, chess::Move& best);
++  void showHint();
++  void takeBack();
++  bool isLegalTarget(int from, int to) const;
++  bool isRepetition() const;
++
++  void renderList(const Rect& safe, const char* const* items, int count, int selectedIndex);
++  void renderBoard(const Rect& safe);
++  void renderGuide(const Rect& safe);
++  void loadGuidePage();
++  void drawPiece(int x, int y, int8_t piece) const;
++  void drawCorners(int x, int y, int size) const;
++  const char* statusText() const;
++};
+diff --git a/src/activities/util/Game2048Activity.cpp b/src/activities/util/Game2048Activity.cpp
+new file mode 100644
+index 0000000..1bac43b
+--- /dev/null
++++ b/src/activities/util/Game2048Activity.cpp
+@@ -0,0 +1,230 @@
++#include "Game2048Activity.h"
++
++#include <Arduino.h>
++#include <GfxRenderer.h>
++#include <I18n.h>
++
++#include <cstdio>
++
++#include "components/UITheme.h"
++#include "fontIds.h"
++#include "util/ButtonNavigator.h"
++
++namespace {
++
++constexpr int BOARD_MARGIN = 8;
++constexpr int TILE_GAP = 6;
++
++// Darker shading for higher tiles so value reads at a glance without colour.
++Color tileShade(const uint16_t value) {
++  if (value == 0) return Clear;
++  int rank = 0;
++  for (uint16_t v = value; v > 2; v >>= 1) rank++;  // 2->0, 4->1, 8->2, ...
++  if (rank <= 1) return Clear;                      // 2, 4: white, black number
++  if (rank <= 4) return LightGray;                  // 8..32
++  return DarkGray;                                  // 64+
++}
++
++int digitFont(const uint16_t value) {
++  if (value < 100) return NOTOSANS_18_FONT_ID;
++  if (value < 1000) return NOTOSANS_16_FONT_ID;
++  return NOTOSANS_14_FONT_ID;
++}
++
++}  // namespace
++
++Game2048Activity::Game2048Activity(GfxRenderer& renderer, MappedInputManager& mappedInput)
++    : Activity("2048", renderer, mappedInput) {}
++
++uint32_t Game2048Activity::nextRandom() {
++  rngState = rngState * 1664525u + 1013904223u;
++  return rngState >> 8;
++}
++
++bool Game2048Activity::spawnTile() {
++  int empty[N * N];
++  int count = 0;
++  for (int i = 0; i < N * N; i++) {
++    if (tiles[i] == 0) empty[count++] = i;
++  }
++  if (count == 0) return false;
++  const int cell = empty[nextRandom() % count];
++  tiles[cell] = (nextRandom() % 10 == 0) ? 4 : 2;  // one in ten is a 4
++  return true;
++}
++
++void Game2048Activity::reset() {
++  for (auto& t : tiles) t = 0;
++  score = 0;
++  won = false;
++  acknowledgedWin = false;
++  over = false;
++  spawnTile();
++  spawnTile();
++}
++
++void Game2048Activity::onEnter() {
++  Activity::onEnter();
++  rngState = millis() * 2654435761u + 1;
++  reset();
++  requestUpdate();
++}
++
++bool Game2048Activity::slide(const int dRow, const int dCol) {
++  // Walk each line from the far edge toward the moving direction, compacting into
++  // the leading cell and merging equal neighbours once each.
++  bool moved = false;
++  const bool horizontal = dCol != 0;
++  const int forward = (dRow + dCol) > 0;  // moving toward higher index within a line
++
++  for (int line = 0; line < N; line++) {
++    // Gather this row/column into `seq` in travel order (destination end first).
++    uint16_t seq[N];
++    int idx[N];
++    for (int i = 0; i < N; i++) {
++      const int pos = forward ? (N - 1 - i) : i;
++      const int cell = horizontal ? line * N + pos : pos * N + line;
++      idx[i] = cell;
++      seq[i] = tiles[cell];
++    }
++    // Compact non-zero values, then merge adjacent equals, then compact again.
++    uint16_t packed[N];
++    int n = 0;
++    for (int i = 0; i < N; i++) {
++      if (seq[i] != 0) packed[n++] = seq[i];
++    }
++    uint16_t result[N] = {0, 0, 0, 0};
++    int w = 0;
++    for (int i = 0; i < n; i++) {
++      if (i + 1 < n && packed[i] == packed[i + 1]) {
++        const uint16_t merged = static_cast<uint16_t>(packed[i] * 2);
++        result[w++] = merged;
++        score += merged;
++        if (merged >= 2048) won = true;
++        i++;  // consume the partner
++      } else {
++        result[w++] = packed[i];
++      }
++    }
++    for (int i = 0; i < N; i++) {
++      if (tiles[idx[i]] != result[i]) moved = true;
++      tiles[idx[i]] = result[i];
++    }
++  }
++  return moved;
++}
++
++bool Game2048Activity::canMove() const {
++  for (int r = 0; r < N; r++) {
++    for (int c = 0; c < N; c++) {
++      const uint16_t v = tiles[r * N + c];
++      if (v == 0) return true;
++      if (c + 1 < N && tiles[r * N + c + 1] == v) return true;
++      if (r + 1 < N && tiles[(r + 1) * N + c] == v) return true;
++    }
++  }
++  return false;
++}
++
++void Game2048Activity::loop() {
++  bool dirty = false;
++
++  auto move = [&](const int dRow, const int dCol) {
++    if (over) return;
++    if (slide(dRow, dCol)) {
++      spawnTile();
++      if (score > best) best = score;
++      if (!canMove()) over = true;
++      dirty = true;
++    }
++  };
++
++  ButtonNavigator::onPress({MappedInputManager::Button::ScreenLeft}, [&] { move(0, -1); });
++  ButtonNavigator::onPress({MappedInputManager::Button::ScreenRight}, [&] { move(0, 1); });
++  ButtonNavigator::onPress({MappedInputManager::Button::ScreenUp}, [&] { move(-1, 0); });
++  ButtonNavigator::onPress({MappedInputManager::Button::ScreenDown}, [&] { move(1, 0); });
++  ButtonNavigator::onPress({MappedInputManager::Button::Confirm}, [&] {
++    if (over || (won && !acknowledgedWin)) {
++      if (over) {
++        reset();
++      } else {
++        acknowledgedWin = true;  // dismiss the win banner and keep playing
++      }
++      dirty = true;
++    }
++  });
++  ButtonNavigator::onPress({MappedInputManager::Button::Back}, [&] { finish(); });
++
++  if (dirty) requestUpdate();
++}
++
++void Game2048Activity::renderTile(const int x, const int y, const int size, const uint16_t value) const {
++  const Color shade = tileShade(value);
++  if (shade == Clear) {
++    renderer.drawRect(x, y, size, size, value == 0 ? 1 : 2, true);
++  } else {
++    renderer.fillRectDither(x, y, size, size, shade);
++    renderer.drawRect(x, y, size, size, 2, true);
++  }
++  if (value == 0) return;
++
++  char buf[8];
++  snprintf(buf, sizeof(buf), "%u", value);
++  const int fontId = digitFont(value);
++  // A dark tile needs a light number, so knock a white box behind the digits.
++  const bool darkTile = shade == DarkGray;
++  const int textW = renderer.getTextWidth(fontId, buf);
++  const int textH = renderer.getTextHeight(fontId);
++  const int tx = x + (size - textW) / 2;
++  const int ty = y + (size - textH) / 2;
++  if (darkTile) renderer.fillRect(tx - 4, ty - 2, textW + 8, textH + 4, false);
++  renderer.drawText(fontId, tx, ty, buf, true);
++}
++
++void Game2048Activity::render(RenderLock&&) {
++  const auto& metrics = UITheme::getInstance().getMetrics();
++  const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
++
++  renderer.clearScreen();
++  GUI.drawHeader(renderer, Rect{safe.x, safe.y + metrics.topPadding, safe.width, metrics.headerHeight}, "2048");
++
++  const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
++  int y = safe.y + metrics.topPadding + metrics.headerHeight + 6;
++  char scoreLine[48];
++  snprintf(scoreLine, sizeof(scoreLine), "%s: %u    %s: %u", tr(STR_G2048_SCORE), score, tr(STR_G2048_BEST), best);
++  renderer.drawCenteredText(UI_12_FONT_ID, y, scoreLine);
++  y += lineH + BOARD_MARGIN;
++
++  const int bottomText = 2 * lineH + BOARD_MARGIN;
++  const int availH = safe.y + safe.height - y - bottomText;
++  const int availW = safe.width - 2 * BOARD_MARGIN;
++  int boardPx = availW < availH ? availW : availH;
++  const int tile = (boardPx - (N + 1) * TILE_GAP) / N;
++  boardPx = N * tile + (N + 1) * TILE_GAP;
++  const int boardX = safe.x + (safe.width - boardPx) / 2;
++  const int boardY = y;
++
++  renderer.fillRectDither(boardX, boardY, boardPx, boardPx, LightGray);
++  renderer.drawRect(boardX, boardY, boardPx, boardPx, 2, true);
++  for (int r = 0; r < N; r++) {
++    for (int c = 0; c < N; c++) {
++      const int tx = boardX + TILE_GAP + c * (tile + TILE_GAP);
++      const int ty = boardY + TILE_GAP + r * (tile + TILE_GAP);
++      renderTile(tx, ty, tile, tiles[r * N + c]);
++    }
++  }
++
++  const int msgY = boardY + boardPx + BOARD_MARGIN;
++  if (over) {
++    renderer.drawCenteredText(UI_12_FONT_ID, msgY, tr(STR_G2048_OVER));
++  } else if (won && !acknowledgedWin) {
++    renderer.drawCenteredText(UI_12_FONT_ID, msgY, tr(STR_G2048_WIN));
++  } else {
++    renderer.drawCenteredText(UI_10_FONT_ID, msgY, tr(STR_G2048_HELP));
++  }
++
++  const char* confirmLabel = over ? tr(STR_CHESS_NEW_GAME) : (won && !acknowledgedWin ? tr(STR_CHESS_NEXT) : "");
++  const auto hints = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, "", "");
++  GUI.drawButtonHints(renderer, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
++  renderer.displayBuffer();
++}
+diff --git a/src/activities/util/Game2048Activity.h b/src/activities/util/Game2048Activity.h
+new file mode 100644
+index 0000000..87a87b9
+--- /dev/null
++++ b/src/activities/util/Game2048Activity.h
+@@ -0,0 +1,43 @@
++#pragma once
++
++#include <cstdint>
++
++#include "activities/Activity.h"
++
++class GfxRenderer;
++struct Rect;
++
++// 2048 on the 4x4 grid: slide the tiles with the direction buttons, equal tiles
++// merge, reach 2048 to win but keep going for a higher score. Back exits.
++//
++// Resource note (AGENTS.md): no heap and no tasks. The whole game is 16 tile
++// values plus a few ints held in the activity, recomputed into stack locals each
++// move. Randomness is a self-contained LCG seeded from millis(), so nothing is
++// pulled in for it.
++class Game2048Activity final : public Activity {
++ public:
++  Game2048Activity(GfxRenderer& renderer, MappedInputManager& mappedInput);
++
++  void onEnter() override;
++  void loop() override;
++  void render(RenderLock&&) override;
++
++ private:
++  static constexpr int N = 4;
++
++  uint16_t tiles[N * N] = {};  // tile face value, 0 = empty
++  uint32_t score = 0;
++  uint32_t best = 0;
++  uint32_t rngState = 1;
++  bool won = false;         // reached 2048 at least once
++  bool acknowledgedWin = false;
++  bool over = false;        // no move possible
++
++  uint32_t nextRandom();
++  void reset();
++  bool spawnTile();
++  bool slide(int dRow, int dCol);  // returns true when the board changed
++  bool canMove() const;
++
++  void renderTile(int x, int y, int size, uint16_t value) const;
++};
+diff --git a/test/chess_native/chess_native.cpp b/test/chess_native/chess_native.cpp
+new file mode 100644
+index 0000000..c9545b1
+--- /dev/null
++++ b/test/chess_native/chess_native.cpp
+@@ -0,0 +1,247 @@
++// Native validation for lib/Chess: perft against published node counts, plus a
++// filter that keeps only puzzle candidates which really are mate in one.
++//   c++ -std=c++20 -O2 -I../../lib/Chess chess_native.cpp ../../lib/Chess/ChessEngine.cpp -o chess_native
++#include <chrono>
++#include <cstdio>
++#include <vector>
++
++#include "ChessEngine.h"
++
++using namespace chess;
++
++static Move g_pool[8192];
++
++struct PerftCase {
++  const char* name;
++  const char* fen;
++  int depth;
++  uint64_t expected;
++};
++
++static const PerftCase PERFT[] = {
++    {"startpos d1", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 1, 20},
++    {"startpos d2", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 2, 400},
++    {"startpos d3", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 3, 8902},
++    {"startpos d4", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 4, 197281},
++    {"kiwipete d1", "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", 1, 48},
++    {"kiwipete d2", "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", 2, 2039},
++    {"kiwipete d3", "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", 3, 97862},
++    {"endgame  d4", "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", 4, 43238},
++    {"promo    d3", "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", 3, 9467},
++    {"pos5     d3", "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8", 3, 62379},
++};
++
++static const char* const PUZZLE_CANDIDATES[] = {
++    "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",
++    "7k/5K2/8/8/8/8/8/6Q1 w - - 0 1",
++    "7k/R7/8/8/8/8/8/1R4K1 w - - 0 1",
++    "6rk/6pp/8/6N1/8/8/8/6K1 w - - 0 1",
++    "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
++    "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 1",
++    "k7/8/1K6/8/8/8/8/7R w - - 0 1",
++    "6k1/5ppp/8/8/8/8/5PPP/3Q2K1 w - - 0 1",
++    "k7/2P5/1K6/8/8/8/8/8 w - - 0 1",
++    "7k/8/6K1/8/8/8/8/R7 w - - 0 1",
++    "k7/8/K7/8/8/8/8/7Q w - - 0 1",
++    "6K1/8/6k1/8/8/8/8/r7 b - - 0 1",
++    "6k1/4Rppp/8/8/8/8/8/4R1K1 w - - 0 1",
++    "7k/8/5N2/8/8/8/8/6RK w - - 0 1",
++    "7k/7p/5N2/8/8/8/8/R5K1 w - - 0 1",
++    "5rk1/5ppp/8/8/8/8/1Q6/1B4K1 w - - 0 1",
++    "r4rk1/ppp2ppp/8/8/8/2B5/PPP2PPP/2K3QR w - - 0 1",
++    "5k2/5P2/5K2/8/8/8/8/6R1 w - - 0 1",
++    "8/8/8/8/8/k1K5/8/1Q6 w - - 0 1",
++    "kr6/pp6/8/8/8/8/8/K5QN w - - 0 1",
++    "2kr4/ppp5/8/8/8/8/6B1/K5Q1 w - - 0 1",
++    "7k/6pp/8/8/8/8/8/K4Q1R w - - 0 1",
++};
++
++static const char* sqName(int s) {
++  static char b[8][3];
++  static int i;
++  char* o = b[i = (i + 1) & 7];
++  o[0] = 'a' + (s & 7);
++  o[1] = '1' + (s >> 3);
++  o[2] = 0;
++  return o;
++}
++
++int main() {
++  int failures = 0;
++  printf("== perft ==\n");
++  for (const auto& c : PERFT) {
++    Board b;
++    b.setFen(c.fen);
++    const uint64_t got = b.perft(c.depth, g_pool, 8192);
++    const bool ok = got == c.expected;
++    if (!ok) failures++;
++    printf("  %-12s %10llu  expected %10llu  %s\n", c.name, (unsigned long long)got, (unsigned long long)c.expected,
++           ok ? "OK" : "SAI");
++  }
++
++  printf("\n== the co chieu het 1 nuoc ==\n");
++  int kept = 0;
++  for (const char* fen : PUZZLE_CANDIDATES) {
++    Board b;
++    if (!b.setFen(fen)) {
++      printf("  FEN HONG: %s\n", fen);
++      continue;
++    }
++    if (b.isAttacked(b.kingSquare(!b.whiteToMove), b.whiteToMove)) {
++      printf("  LOAI (ben kia dang bi chieu): %s\n", fen);
++      continue;
++    }
++    Move moves[MAX_MOVES], scratch[MAX_MOVES];
++    const int n = b.generateLegal(moves);
++    int mates = 0;
++    Move first{};
++    for (int i = 0; i < n; i++) {
++      Undo u;
++      b.make(moves[i], u);
++      if (b.inCheck() && !b.hasLegalMove(scratch)) {
++        if (!mates) first = moves[i];
++        mates++;
++      }
++      b.unmake(moves[i], u);
++    }
++    if (mates > 0) {
++      kept++;
++      printf("  GIU  (%d loi giai, vd %s%s)  %s\n", mates, sqName(first.from), sqName(first.to), fen);
++    } else
++      printf("  LOAI (khong co chieu het 1 nuoc)  %s\n", fen);
++  }
++  printf("  => giu %d the co\n", kept);
++
++  printf("\n== toc do tim kiem tu vi tri trung cuoc (khong gioi han thoi gian) ==\n");
++  for (int depth = 1; depth <= 6; depth++) {
++    Board b;
++    b.setFen("r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP1N1PPP/R2QK2R w KQ - 0 8");
++    SearchContext ctx;
++    ctx.pool = g_pool;
++    ctx.poolSize = 8192;
++    Move best;
++    const auto t0 = std::chrono::steady_clock::now();
++    findBestMove(b, depth, 0, 0, 1, ctx, best);
++    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
++    printf("  depth %d: %s%s  nodes=%u  %.1f ms\n", depth, sqName(best.from), sqName(best.to), ctx.nodes, ms);
++  }
++
++  auto expectMove = [&](const char* name, const char* fen, int depth, int from, int to) {
++    Board b;
++    b.setFen(fen);
++    SearchContext ctx;
++    ctx.pool = g_pool;
++    ctx.poolSize = 8192;
++    Move best;
++    findBestMove(b, depth, 0, 0, 1, ctx, best);
++    const bool ok = best.from == from && best.to == to;
++    if (!ok) failures++;
++    printf("  %-28s %s%s  %s\n", name, sqName(best.from), sqName(best.to), ok ? "OK" : "SAI");
++  };
++  printf("\n== may tu tim nuoc hay ==\n");
++  expectMove("chieu het 1 nuoc (Ra8#)", "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 2, 0, 56);
++  // Legall-style: 1.Nf6+ gxf6 2.Bxf7#
++  expectMove("chieu het 2 nuoc (Nf6+)", "r2qkb1r/pp2nppp/3p4/2pNN1B1/2BnP3/3P4/PPP2PPP/R2bK2R w KQkq - 1 0", 4, 35, 45);
++  expectMove("an hau treo (Bxd8)", "3q3k/8/8/6B1/8/8/8/6K1 w - - 0 1", 2, 38, 59);
++
++  printf("\n== tan cuoc Vua+Hau: may co chieu het duoc khong ==\n");
++  {
++    Board b;
++    b.setFen("8/8/8/4k3/8/8/8/KQ6 w - - 0 1");
++    SearchContext ctx;
++    ctx.pool = g_pool;
++    ctx.poolSize = 8192;
++    Move scratch[MAX_MOVES];
++    int plies = 0;
++    bool mated = false;
++    while (plies < 80) {
++      Move best;
++      if (!findBestMove(b, b.whiteToMove ? 5 : 3, 0, 0, 1, ctx, best)) break;
++      Undo u;
++      b.make(best, u);
++      plies++;
++      if (b.inCheck() && !b.hasLegalMove(scratch)) {
++        mated = true;
++        break;
++      }
++      if (!b.hasLegalMove(scratch)) break;
++    }
++    if (!mated) failures++;
++    printf("  %s sau %d nuoc (moi ben)\n", mated ? "CHIEU HET" : "KHONG chieu het duoc - SAI", (plies + 1) / 2);
++  }
++
++  printf("\n== luat hoa ==\n");
++  {
++    struct {
++      const char* name;
++      const char* fen;
++      bool expect;
++    } M[] = {
++        {"chi con 2 vua", "8/8/8/4k3/8/8/8/K7 w - - 0 1", true},
++        {"vua+ma vs vua", "8/8/8/4k3/8/8/8/KN6 w - - 0 1", true},
++        {"vua+tuong vs vua", "8/8/8/4k3/8/8/8/KB6 w - - 0 1", true},
++        {"vua+xe vs vua", "8/8/8/4k3/8/8/8/KR6 w - - 0 1", false},
++        {"vua+tot vs vua", "8/8/8/4k3/8/8/P7/K7 w - - 0 1", false},
++        {"2 ma vs vua", "8/8/8/4k3/8/8/8/KNN5 w - - 0 1", false},
++    };
++    for (auto& m : M) {
++      Board b;
++      b.setFen(m.fen);
++      const bool got = insufficientMaterial(b);
++      if (got != m.expect) failures++;
++      printf("  khong du quan: %-18s -> %s  %s\n", m.name, got ? "hoa" : "danh tiep", got == m.expect ? "OK" : "SAI");
++    }
++
++    // Ng1-f3 Ng8-f6 Nf3-g1 Nf6-g8 tra ve dung the ban dau.
++    Board b;
++    const uint64_t k0 = positionKey(b);
++    const int seq[4][2] = {{6, 21}, {62, 45}, {21, 6}, {45, 62}};
++    Move legal[MAX_MOVES];
++    for (auto& mv : seq) {
++      const int n = b.generateLegal(legal);
++      for (int i = 0; i < n; i++)
++        if (legal[i].from == mv[0] && legal[i].to == mv[1]) {
++          Undo u;
++          b.make(legal[i], u);
++          break;
++        }
++    }
++    const bool same = positionKey(b) == k0;
++    Board c;
++    c.setFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1");
++    const bool differs = positionKey(c) != k0;
++    if (!same || !differs) failures++;
++    printf("  khoa the co: lap lai -> %s, doi luot di -> %s\n", same ? "trung (OK)" : "KHAC (SAI)",
++           differs ? "khac (OK)" : "TRUNG (SAI)");
++  }
++
++  printf("\n== gioi han thoi gian ==\n");
++  {
++    Board b;
++    b.setFen("r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP1N1PPP/R2QK2R w KQ - 0 8");
++    SearchContext ctx;
++    ctx.pool = g_pool;
++    ctx.poolSize = 8192;
++    ctx.nowMs = +[]() -> uint32_t {
++      return (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(
++                 std::chrono::steady_clock::now().time_since_epoch())
++          .count();
++    };
++    Move best;
++    const auto t0 = std::chrono::steady_clock::now();
++    findBestMove(b, 20, 150, 0, 1, ctx, best);
++    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
++    Move legal[MAX_MOVES];
++    const int n = b.generateLegal(legal);
++    bool isLegal = false;
++    for (int i = 0; i < n; i++)
++      if (legal[i] == best) isLegal = true;
++    const bool ok = isLegal && ms < 400;
++    if (!ok) failures++;
++    printf("  han 150ms: dung sau %.0f ms, toi depth %d, nuoc %s%s %s  %s\n", ms, ctx.depthReached, sqName(best.from),
++           sqName(best.to), isLegal ? "hop le" : "KHONG hop le", ok ? "OK" : "SAI");
++  }
++
++  printf("\n%s\n", failures ? "CO LOI" : "TAT CA DAT");
++  return failures ? 1 : 0;
++}

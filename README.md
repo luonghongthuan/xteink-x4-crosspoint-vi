@@ -35,6 +35,7 @@ nền e-ink, và script chia nhỏ truyện dài để máy không bị treo.
 | [07 — Sách tự soạn](docs/07-sach-hoc-tieng-anh.md) | 11 EPUB: học tiếng Anh, khoa học, danh nhân, truyện thiếu nhi |
 | [08 — Font và cấu hình đọc](docs/08-font-va-cau-hinh.md) | Chọn font cho tiếng Việt, cấu hình tối ưu |
 | [09 — Lật trang Bluetooth](docs/09-bluetooth.md) | Bật BLE, ghép remote, chọn thiết bị nào |
+| [10 — Trò chơi](docs/10-tro-choi.md) | Cờ vua (chơi với máy, giải thế cờ, hướng dẫn cho bé) và 2048 |
 
 ---
 
